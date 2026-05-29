@@ -2,18 +2,21 @@ part of 'griot_cubit.dart';
 
 sealed class GriotState extends Equatable {
   const GriotState();
+
   @override
   List<Object?> get props => [];
 }
 
 final class GriotInitial extends GriotState {
-
+  const GriotInitial();
 }
 
-class GriotLoading extends GriotState {}
+final class GriotThinking extends GriotState {
+  const GriotThinking();
+}
 
-class GriotSuccess extends GriotState {
-  const GriotSuccess(this.response);
+final class GriotSpeaking extends GriotState {
+  const GriotSpeaking(this.response);
 
   final String response;
 
@@ -21,8 +24,8 @@ class GriotSuccess extends GriotState {
   List<Object?> get props => [response];
 }
 
-class GriotFailure extends GriotState {
-  const GriotFailure(this.message);
+final class GriotError extends GriotState {
+  const GriotError(this.message);
 
   final String message;
 

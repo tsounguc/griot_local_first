@@ -11,31 +11,30 @@ class GriotPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('GRIOT v0.1')),
-      body: BlocConsumer<GriotCubit, GriotState>(
-        listener: (BuildContext context, GriotState state) {},
+      appBar: AppBar(title: const Text('GRIOT v0.2')),
+      body: BlocBuilder<GriotCubit, GriotState>(
         builder: (context, state) {
-          final isLoading = state is GriotLoading;
+          final isThinking = state is GriotThinking;
 
           String response = '';
 
-          if (state is GriotSuccess) {
+          if (state is GriotSpeaking) {
             response = state.response;
           }
 
-          if (state is GriotFailure) {
+          if (state is GriotError) {
             response = state.message;
           }
 
           return Column(
             children: [
               Expanded(
-                child: isLoading
+                child: isThinking
                     ? const GriotLoadingIndicator()
                     : GriotResponse(response: response),
               ),
               GriotInput(
-                isLoading: isLoading,
+                isLoading: isThinking,
                 onSubmitted: context.read<GriotCubit>().submitInput,
                 onStopSpeaking: context.read<GriotCubit>().stopSpeaking,
               ),
