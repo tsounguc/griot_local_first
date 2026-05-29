@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
 import 'package:griot/features/griot/domain/usecases/run_griot_core_loop.dart';
 
@@ -9,10 +10,11 @@ class GriotCubit extends Cubit<GriotState> {
   GriotCubit({
     required this.runGriotCoreLoop,
     required this.speechOutputService,
-  }) : super(GriotInitial());
+  }) : super(GriotIdle());
 
   final RunGriotCoreLoop runGriotCoreLoop;
   final SpeechOutputService speechOutputService;
+  final List<ConversationMessage> _conversationHistory = [];
 
   Future<void> submitInput(String input) async {
     if (input.trim().isEmpty) return;
@@ -20,7 +22,17 @@ class GriotCubit extends Cubit<GriotState> {
     emit(const GriotThinking());
 
     try {
-      final response = await runGriotCoreLoop(input);
+      _conversationHistory.add(
+        ConversationMessage(role: 'user', content: input),
+      );
+
+      final response = await runGriotCoreLoop(
+        input,
+        conversationHistory: _conversationHistory,
+      );
+      _conversationHistory.add(
+        ConversationMessage(role: 'assistant', content: response),
+      );
 
       emit(GriotSpeaking(response));
       await speechOutputService.speak(response);
@@ -36,11 +48,11 @@ class GriotCubit extends Cubit<GriotState> {
     await speechOutputService.stop();
 
     if (state is GriotSpeaking) {
-      emit(const GriotInitial());
+      emit(const GriotIdle());
     }
   }
 
   void resetToIdle() {
-    emit(const GriotInitial());
+    emit(const GriotIdle());
   }
 }
