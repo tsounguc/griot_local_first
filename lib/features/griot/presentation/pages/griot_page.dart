@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:griot/features/griot/presentation/cubit/griot_cubit.dart';
+import 'package:griot/features/griot/presentation/griot_cubit/griot_cubit.dart';
+import 'package:griot/features/griot/presentation/pages/memory_panel_page.dart';
 import 'package:griot/features/griot/presentation/widgets/griot_input.dart';
 import 'package:griot/features/griot/presentation/widgets/griot_loading_indicator.dart';
 import 'package:griot/features/griot/presentation/widgets/griot_response.dart';
@@ -11,7 +12,19 @@ class GriotPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('GRIOT v0.2')),
+      appBar: AppBar(
+        title: const Text('GRIOT v0.3'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.memory_rounded),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MemoryPanelPage()),
+              );
+            },
+          ),
+        ],
+      ),
       body: BlocBuilder<GriotCubit, GriotState>(
         builder: (context, state) {
           final isThinking = state is GriotThinking;

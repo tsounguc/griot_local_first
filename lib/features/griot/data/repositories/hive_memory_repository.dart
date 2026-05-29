@@ -4,14 +4,14 @@ import 'package:griot/features/griot/domain/repositories/memory_repository.dart'
 import 'package:hive/hive.dart';
 
 class HiveMemoryRepository implements MemoryRepository {
-  HiveMemoryRepository(this.box);
+  HiveMemoryRepository(this.memoryBox);
 
-  final Box<GriotMemoryModel> box;
+  final Box<GriotMemoryModel> memoryBox;
 
   @override
   Future<void> saveMemory(GriotMemory memory) async {
     final model = GriotMemoryModel.fromEntity(memory);
-    await box.put(memory.id, model);
+    await memoryBox.put(memory.id, model);
   }
 
   @override
@@ -22,7 +22,7 @@ class HiveMemoryRepository implements MemoryRepository {
         .where((word) => word.length > 3)
         .toList();
 
-    final memories = box.values.map((model) => model.toEntity()).toList();
+    final memories = memoryBox.values.map((model) => model.toEntity()).toList();
 
     final results = memories.where((memory) {
       final content = memory.content.toLowerCase();
@@ -45,10 +45,29 @@ class HiveMemoryRepository implements MemoryRepository {
 
   @override
   Future<List<GriotMemory>> getRecentMemories() async {
-    final memories = box.values.map((model) => model.toEntity()).toList();
+    final memories = memoryBox.values.map((model) => model.toEntity()).toList();
 
     memories.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return memories.take(10).toList();
+  }
+
+  @override
+  Future<List<GriotMemory>> getAllMemories() async {
+    final memories = memoryBox.values.map((model) => model.toEntity()).toList();
+
+    memories.sort((a, b) {
+      final importanceCompare = b.importance.compareTo(a.importance);
+      if (importanceCompare != 0) return importanceCompare;
+
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+
+    return memories;
+  }
+
+  @override
+  Future<void> deleteMemory(String id) async {
+    await memoryBox.delete(id);
   }
 }

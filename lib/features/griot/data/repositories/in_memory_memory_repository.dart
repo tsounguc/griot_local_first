@@ -34,4 +34,22 @@ class InMemoryMemoryRepository implements MemoryRepository {
 
     return sorted.take(10).toList();
   }
+
+  @override
+  Future<List<GriotMemory>> getAllMemories() async {
+    final sorted = [..._memories]
+      ..sort((a, b) {
+        final importanceCompare = b.importance.compareTo(a.importance);
+        if (importanceCompare != 0) return importanceCompare;
+
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+
+    return sorted;
+  }
+
+  @override
+  Future<void> deleteMemory(String id) async {
+    _memories.removeWhere((memory) => memory.id == id);
+  }
 }
