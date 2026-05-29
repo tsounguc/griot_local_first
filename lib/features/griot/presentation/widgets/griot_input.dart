@@ -4,10 +4,12 @@ class GriotInput extends StatefulWidget {
   const GriotInput({
     super.key,
     required this.onSubmitted,
+    required this.onStopSpeaking,
     this.isLoading = false,
   });
 
   final ValueChanged<String> onSubmitted;
+  final VoidCallback onStopSpeaking;
   final bool isLoading;
 
   @override
@@ -41,11 +43,7 @@ class _GriotInputState extends State<GriotInput> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          border: Border(
-            top: BorderSide(
-              color: colorScheme.outlineVariant,
-            ),
-          ),
+          border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
         ),
         child: Row(
           children: [
@@ -77,11 +75,15 @@ class _GriotInputState extends State<GriotInput> {
               onPressed: widget.isLoading ? null : _submit,
               icon: widget.isLoading
                   ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.send_rounded),
+            ),
+            IconButton(
+              onPressed: widget.onStopSpeaking,
+              icon: const Icon(Icons.stop_rounded),
             ),
           ],
         ),
