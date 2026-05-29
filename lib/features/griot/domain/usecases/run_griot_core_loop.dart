@@ -3,6 +3,7 @@ import 'package:griot/features/griot/domain/entities/griot_memory.dart';
 import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
 import 'package:griot/features/griot/domain/usecases/calculate_memory_importance.dart';
+import 'package:griot/features/griot/domain/usecases/normalize_memory.dart';
 import 'package:griot/features/griot/domain/usecases/should_remember.dart';
 
 import 'build_prompt.dart';
@@ -38,7 +39,7 @@ class RunGriotCoreLoop {
       await memoryRepository.saveMemory(
         GriotMemory(
           id: now.microsecondsSinceEpoch.toString(),
-          content: userInput,
+          content: normalizeMemory(userInput),
           tags: ['user-input'],
           createdAt: now,
           updatedAt: now,
