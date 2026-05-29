@@ -24,7 +24,7 @@ class HiveMemoryRepository implements MemoryRepository {
 
     final memories = box.values.map((model) => model.toEntity()).toList();
 
-    return memories.where((memory) {
+    final results = memories.where((memory) {
       final content = memory.content.toLowerCase();
       final tags = memory.tags.map((tag) => tag.toLowerCase()).join(' ');
 
@@ -32,6 +32,15 @@ class HiveMemoryRepository implements MemoryRepository {
         return content.contains(word) || tags.contains(word);
       });
     }).toList();
+
+    results.sort((a, b) {
+      final importanceCompare = b.importance.compareTo(a.importance);
+      if (importanceCompare != 0) return importanceCompare;
+
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+
+    return results;
   }
 
   @override

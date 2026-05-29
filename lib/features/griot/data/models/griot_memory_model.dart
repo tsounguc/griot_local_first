@@ -11,6 +11,7 @@ class GriotMemoryModel extends HiveObject {
     required this.tags,
     required this.createdAt,
     required this.updatedAt,
+    required this.importance,
   });
 
   @HiveField(0)
@@ -28,6 +29,9 @@ class GriotMemoryModel extends HiveObject {
   @HiveField(4)
   final DateTime updatedAt;
 
+  @HiveField(5)
+  final double importance;
+
   factory GriotMemoryModel.fromEntity(GriotMemory memory) {
     return GriotMemoryModel(
       id: memory.id,
@@ -35,6 +39,7 @@ class GriotMemoryModel extends HiveObject {
       tags: memory.tags,
       createdAt: memory.createdAt,
       updatedAt: memory.updatedAt,
+      importance: memory.importance,
     );
   }
 
@@ -45,6 +50,7 @@ class GriotMemoryModel extends HiveObject {
       tags: tags,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      importance: importance,
     );
   }
 }

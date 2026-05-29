@@ -2,7 +2,6 @@ import 'package:get_it/get_it.dart';
 import 'package:griot/features/griot/data/gateways/local_ollama_gateway.dart';
 import 'package:griot/features/griot/data/models/griot_memory_model.dart';
 import 'package:griot/features/griot/data/repositories/hive_memory_repository.dart';
-import 'package:griot/features/griot/data/repositories/in_memory_memory_repository.dart';
 import 'package:griot/features/griot/data/services/flutter_tts_speech_output_service.dart';
 import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
@@ -18,6 +17,8 @@ Future<void> initDependencies() async {
   await Hive.initFlutter();
 
   Hive.registerAdapter(GriotMemoryModelAdapter());
+
+  // await Hive.deleteBoxFromDisk('griot_memories');
 
   final memoryBox = await Hive.openBox<GriotMemoryModel>('griot_memories');
 

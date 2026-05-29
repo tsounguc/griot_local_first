@@ -22,13 +22,14 @@ class GriotMemoryModelAdapter extends TypeAdapter<GriotMemoryModel> {
       tags: (fields[2] as List).cast<String>(),
       createdAt: fields[3] as DateTime,
       updatedAt: fields[4] as DateTime,
+      importance: fields[5] as double,
     );
   }
 
   @override
   void write(BinaryWriter writer, GriotMemoryModel obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +39,9 @@ class GriotMemoryModelAdapter extends TypeAdapter<GriotMemoryModel> {
       ..writeByte(3)
       ..write(obj.createdAt)
       ..writeByte(4)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(5)
+      ..write(obj.importance);
   }
 
   @override
