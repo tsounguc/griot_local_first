@@ -1,0 +1,27 @@
+import 'package:get_it/get_it.dart';
+import 'package:griot/features/griot/data/gateways/local_ollama_gateway.dart';
+import 'package:griot/features/griot/data/repositories/in_memory_memory_repository.dart';
+import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
+import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
+import 'package:griot/features/griot/domain/usecases/build_prompt.dart';
+import 'package:griot/features/griot/domain/usecases/run_griot_core_loop.dart';
+import 'package:griot/features/griot/presentation/cubit/griot_cubit.dart';
+
+final GetIt serviceLocator = GetIt.instance;
+
+Future<void> initDependencies() async {
+  serviceLocator
+  // App logic
+    ..registerFactory(()=> GriotCubit(serviceLocator()))
+    // use cases
+    ..registerLazySingleton(
+            ()=> RunGriotCoreLoop(
+                memoryRepository: serviceLocator(),
+                llmGateway: serviceLocator(),
+                buildPrompt: serviceLocator(),
+            ),
+    )..registerLazySingleton(()=> BuildPrompt())
+    // repositories
+    ..registerLazySingleton<MemoryRepository>(()=> InMemoryMemoryRepository())
+      ..registerLazySingleton<LLMGateway>(()=> LocalOllamaGateWay());
+}
