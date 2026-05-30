@@ -6,12 +6,17 @@ class GriotInput extends StatefulWidget {
     required this.onSubmitted,
     required this.onStopSpeaking,
     required this.onStartVoiceInput,
+    required this.onStopVoiceInput,
+    this.isListening = false,
     this.isLoading = false,
   });
 
   final ValueChanged<String> onSubmitted;
   final VoidCallback onStopSpeaking;
   final VoidCallback onStartVoiceInput;
+  final VoidCallback onStopVoiceInput;
+  final bool isListening;
+
   final bool isLoading;
 
   @override
@@ -73,8 +78,16 @@ class _GriotInputState extends State<GriotInput> {
               ),
             ),
             IconButton(
-              onPressed: widget.isLoading ? null : widget.onStartVoiceInput,
-              icon: const Icon(Icons.mic_rounded),
+              onPressed: widget.isLoading
+                  ? null
+                  : widget.isListening
+                  ? widget.onStopVoiceInput
+                  : widget.onStartVoiceInput,
+              icon: Icon(
+                widget.isListening
+                    ? Icons.stop_circle_rounded
+                    : Icons.mic_rounded,
+              ),
             ),
             const SizedBox(width: 8),
             IconButton.filled(

@@ -13,7 +13,7 @@ class GriotPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('GRIOT v0.3'),
+        title: const Text('GRIOT v0.4'),
         actions: [
           IconButton(
             icon: const Icon(Icons.memory_rounded),
@@ -27,9 +27,14 @@ class GriotPage extends StatelessWidget {
       ),
       body: BlocBuilder<GriotCubit, GriotState>(
         builder: (context, state) {
+          final isListening = state is GriotListening;
           final isThinking = state is GriotThinking;
 
           String response = '';
+
+          if (state is GriotListening) {
+            response = 'Listening... tap stop when you are done.';
+          }
 
           if (state is GriotSpeaking) {
             response = state.response;
@@ -48,8 +53,10 @@ class GriotPage extends StatelessWidget {
               ),
               GriotInput(
                 isLoading: isThinking,
+                isListening: isListening,
                 onSubmitted: context.read<GriotCubit>().submitTextInput,
                 onStartVoiceInput: context.read<GriotCubit>().startVoiceInput,
+                onStopVoiceInput: context.read<GriotCubit>().stopVoiceInput,
                 onStopSpeaking: context.read<GriotCubit>().stopSpeaking,
               ),
             ],

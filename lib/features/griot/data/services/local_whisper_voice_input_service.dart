@@ -11,32 +11,47 @@ class LocalWhisperVoiceInputService implements VoiceInputService {
   final String audioPath;
   final String? modelPath;
 
-  @override
-  Future<String> listen() async {
-    await _recordAudio();
-    final rawOutput = await _transcribeAudio();
-    return _extractTranscript(rawOutput);
-  }
+  Process? _recordingProcess;
 
-  Future<void> _recordAudio() async {
-    final result = await Process.run('ffmpeg', [
+  @override
+  Future<void> startListening() async {
+    if (_recordingProcess != null) return;
+
+    final file = File(audioPath);
+    if (await file.exists()) {
+      await file.delete();
+    }
+
+    _recordingProcess = await Process.start('ffmpeg', [
       '-y',
       '-f',
       'avfoundation',
       '-i',
       ':0',
-      '-t',
-      '5',
       '-ar',
       '16000',
       '-ac',
       '1',
       audioPath,
-    ]);
+    ], runInShell: true);
+  }
 
-    if (result.exitCode != 0) {
-      throw Exception('FFmpeg failed: ${result.stderr}');
+  @override
+  Future<String> stopListeningAndTranscribe() async {
+    final process = _recordingProcess;
+
+    if (process == null) {
+      throw Exception('No active recording process.');
     }
+
+    process.stdin.write('q');
+    await process.stdin.close();
+    await process.exitCode;
+
+    _recordingProcess = null;
+
+    final rawOutput = await _transcribeAudio();
+    return _extractTranscript(rawOutput);
   }
 
   Future<String> _transcribeAudio() async {
@@ -49,7 +64,7 @@ class LocalWhisperVoiceInputService implements VoiceInputService {
       resolvedModelPath,
       '-f',
       audioPath,
-    ]);
+    ], runInShell: true);
 
     if (result.exitCode != 0) {
       throw Exception('Whisper failed: ${result.stderr}');
@@ -59,18 +74,13 @@ class LocalWhisperVoiceInputService implements VoiceInputService {
   }
 
   String _extractTranscript(String output) {
-    final transcriptRegex = RegExp(
+    final regex = RegExp(
       r'\[\d{2}:\d{2}:\d{2}\.\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}\.\d{3}\]\s+(.*)',
     );
 
-    final matches = transcriptRegex.allMatches(output).toList();
-
-    if (matches.isEmpty) {
-      return '';
-    }
-
-    return matches
-        .map((match) => match.group(1)?.trim() ?? '')
+    return regex
+        .allMatches(output)
+        .map((m) => m.group(1)?.trim() ?? '')
         .where((line) => line.isNotEmpty)
         .join(' ')
         .trim();

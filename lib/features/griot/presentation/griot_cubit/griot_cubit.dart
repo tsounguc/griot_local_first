@@ -20,10 +20,22 @@ class GriotCubit extends Cubit<GriotState> {
   final List<ConversationMessage> _conversationHistory = [];
 
   Future<void> startVoiceInput() async {
+    try {
+      await speechOutputService.stop();
+      await voiceInputService.startListening();
+      emit(const GriotListening());
+    } catch (e) {
+      emit(GriotError('Could not start voice input: $e'));
+    }
+  }
+
+  Future<void> stopVoiceInput() async {
+    if (state is! GriotListening) return;
+
     emit(const GriotThinking());
 
     try {
-      final transcript = await voiceInputService.listen();
+      final transcript = await voiceInputService.stopListeningAndTranscribe();
 
       if (transcript.trim().isEmpty) {
         emit(const GriotError('I did not hear anything clearly.'));
@@ -35,11 +47,6 @@ class GriotCubit extends Cubit<GriotState> {
       emit(GriotError('Voice input failed: $e'));
     }
   }
-
-  // Future<void> stopVoiceInput() async {
-  //   await voiceInputService.stopListening();
-  //   emit(const GriotIdle());
-  // }
 
   Future<void> submitTextInput(String input) async {
     if (input.trim().isEmpty) return;

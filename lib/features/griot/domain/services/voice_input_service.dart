@@ -11,5 +11,7 @@
 // }
 
 abstract class VoiceInputService {
-  Future<String> listen();
+  Future<void> startListening();
+
+  Future<String> stopListeningAndTranscribe();
 }
