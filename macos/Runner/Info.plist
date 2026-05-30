@@ -28,5 +28,10 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+    <string>GRIOT needs microphone access for voice input.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>GRIOT needs speech recognition access to transcribe your voice.</string>
 </dict>
 </plist>

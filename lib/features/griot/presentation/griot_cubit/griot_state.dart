@@ -15,6 +15,10 @@ final class GriotIdle extends GriotState {
   const GriotIdle();
 }
 
+final class GriotListening extends GriotState {
+  const GriotListening();
+}
+
 final class GriotThinking extends GriotState {
   const GriotThinking();
 }

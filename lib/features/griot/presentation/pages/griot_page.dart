@@ -48,7 +48,8 @@ class GriotPage extends StatelessWidget {
               ),
               GriotInput(
                 isLoading: isThinking,
-                onSubmitted: context.read<GriotCubit>().submitInput,
+                onSubmitted: context.read<GriotCubit>().submitTextInput,
+                onStartVoiceInput: context.read<GriotCubit>().startVoiceInput,
                 onStopSpeaking: context.read<GriotCubit>().stopSpeaking,
               ),
             ],

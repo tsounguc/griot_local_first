@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
+import 'package:griot/features/griot/domain/services/voice_input_service.dart';
 import 'package:griot/features/griot/domain/usecases/run_griot_core_loop.dart';
 
 part 'griot_state.dart';
@@ -10,13 +11,37 @@ class GriotCubit extends Cubit<GriotState> {
   GriotCubit({
     required this.runGriotCoreLoop,
     required this.speechOutputService,
+    required this.voiceInputService,
   }) : super(GriotIdle());
 
   final RunGriotCoreLoop runGriotCoreLoop;
   final SpeechOutputService speechOutputService;
+  final VoiceInputService voiceInputService;
   final List<ConversationMessage> _conversationHistory = [];
 
-  Future<void> submitInput(String input) async {
+  Future<void> startVoiceInput() async {
+    emit(const GriotThinking());
+
+    try {
+      final transcript = await voiceInputService.listen();
+
+      if (transcript.trim().isEmpty) {
+        emit(const GriotError('I did not hear anything clearly.'));
+        return;
+      }
+
+      await submitTextInput(transcript);
+    } catch (e) {
+      emit(GriotError('Voice input failed: $e'));
+    }
+  }
+
+  // Future<void> stopVoiceInput() async {
+  //   await voiceInputService.stopListening();
+  //   emit(const GriotIdle());
+  // }
+
+  Future<void> submitTextInput(String input) async {
     if (input.trim().isEmpty) return;
 
     emit(const GriotThinking());

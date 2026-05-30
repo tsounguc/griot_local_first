@@ -3,9 +3,11 @@ import 'package:griot/features/griot/data/gateways/local_ollama_gateway.dart';
 import 'package:griot/features/griot/data/models/griot_memory_model.dart';
 import 'package:griot/features/griot/data/repositories/hive_memory_repository.dart';
 import 'package:griot/features/griot/data/services/flutter_tts_speech_output_service.dart';
+import 'package:griot/features/griot/data/services/local_whisper_voice_input_service.dart';
 import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
+import 'package:griot/features/griot/domain/services/voice_input_service.dart';
 import 'package:griot/features/griot/domain/usecases/build_prompt.dart';
 import 'package:griot/features/griot/domain/usecases/delete_memory.dart';
 import 'package:griot/features/griot/domain/usecases/get_all_memories.dart';
@@ -31,6 +33,7 @@ Future<void> initDependencies() async {
       () => GriotCubit(
         runGriotCoreLoop: serviceLocator(),
         speechOutputService: serviceLocator(),
+        voiceInputService: serviceLocator(),
       ),
     )
     ..registerFactory(
@@ -55,7 +58,14 @@ Future<void> initDependencies() async {
       () => HiveMemoryRepository(memoryBox),
     )
     ..registerLazySingleton<LLMGateway>(() => LocalOllamaGateWay())
+    // services
     ..registerLazySingleton<SpeechOutputService>(
       () => FlutterTTSSpeechOutputService(),
+    )
+    // ..registerLazySingleton<VoiceInputService>(
+    //   () => SpeechToTextVoiceInputService(),
+    // )
+    ..registerLazySingleton<VoiceInputService>(
+      () => LocalWhisperVoiceInputService(),
     );
 }
