@@ -1,6 +1,5 @@
 import 'package:flutter_tts/flutter_tts.dart';
-
-import '../../domain/services/speech_output_service.dart';
+import 'package:griot/features/griot/domain/services/speech_output_service.dart';
 
 class FlutterTTSSpeechOutputService implements SpeechOutputService {
   final FlutterTts _tts = FlutterTts();

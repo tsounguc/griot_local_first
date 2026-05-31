@@ -50,4 +50,47 @@ class RunGriotCoreLoop {
 
     return response;
   }
+
+  Stream<String> stream(
+    String userInput, {
+    List<ConversationMessage> conversationHistory = const [],
+  }) async* {
+    final matchingMemories = await memoryRepository.searchMemories(userInput);
+    final recentMemories = await memoryRepository.getRecentMemories();
+
+    final memories = {
+      for (final memory in [...matchingMemories, ...recentMemories])
+        memory.id: memory,
+    }.values.toList();
+
+    final prompt = buildPrompt(
+      userInput: userInput,
+      memories: memories,
+      conversationHistory: conversationHistory,
+    );
+
+    final buffer = StringBuffer();
+
+    await for (final token in llmGateway.streamResponse(prompt: prompt)) {
+      buffer.write(token);
+      yield token;
+    }
+
+    final fullResponse = buffer.toString();
+
+    if (shouldRemember(userInput)) {
+      final now = DateTime.now();
+
+      await memoryRepository.saveMemory(
+        GriotMemory(
+          id: now.microsecondsSinceEpoch.toString(),
+          content: normalizeMemory(userInput),
+          tags: ['user-input'],
+          createdAt: now,
+          updatedAt: now,
+          importance: calculateMemoryImportance(userInput),
+        ),
+      );
+    }
+  }
 }

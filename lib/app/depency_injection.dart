@@ -3,6 +3,7 @@ import 'package:griot/features/griot/data/gateways/local_ollama_gateway.dart';
 import 'package:griot/features/griot/data/models/griot_memory_model.dart';
 import 'package:griot/features/griot/data/repositories/hive_memory_repository.dart';
 import 'package:griot/features/griot/data/services/flutter_tts_speech_output_service.dart';
+import 'package:griot/features/griot/data/services/kokoro_speech_output_service.dart';
 import 'package:griot/features/griot/data/services/local_whisper_voice_input_service.dart';
 import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
@@ -59,8 +60,11 @@ Future<void> initDependencies() async {
     )
     ..registerLazySingleton<LLMGateway>(() => LocalOllamaGateWay())
     // services
+    // ..registerLazySingleton<SpeechOutputService>(
+    //   () => FlutterTTSSpeechOutputService(),
+    // )
     ..registerLazySingleton<SpeechOutputService>(
-      () => FlutterTTSSpeechOutputService(),
+      () => KokoroSpeechOutputService(),
     )
     // ..registerLazySingleton<VoiceInputService>(
     //   () => SpeechToTextVoiceInputService(),

@@ -28,6 +28,7 @@ Important identity rules:
 - Memories describe the user, not you.
 - If a memory says "The user's name is Christian", that means the human user's name is Christian.
 - Never claim the user's name, goals, or memories as your own.
+- Keep your response concise: usually 1–4 sentences unless the user asks for depth.
 
 Relevant long-term memories:
 $memoryText

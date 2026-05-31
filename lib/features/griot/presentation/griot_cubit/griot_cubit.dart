@@ -32,7 +32,7 @@ class GriotCubit extends Cubit<GriotState> {
   Future<void> stopVoiceInput() async {
     if (state is! GriotListening) return;
 
-    emit(const GriotThinking());
+    emit(const GriotTranscribing());
 
     try {
       final transcript = await voiceInputService.stopListeningAndTranscribe();
@@ -42,32 +42,63 @@ class GriotCubit extends Cubit<GriotState> {
         return;
       }
 
-      await submitTextInput(transcript);
+      emit(const GriotThinking());
+
+      await submitTextInput(transcript, emitThinking: false);
     } catch (e) {
       emit(GriotError('Voice input failed: $e'));
     }
   }
 
-  Future<void> submitTextInput(String input) async {
+  Future<void> submitTextInput(String input, {bool emitThinking = true}) async {
     if (input.trim().isEmpty) return;
 
-    emit(const GriotThinking());
+    if (emitThinking) {
+      emit(const GriotThinking());
+    }
 
     try {
       _conversationHistory.add(
         ConversationMessage(role: 'user', content: input),
       );
 
-      final response = await runGriotCoreLoop(
+      final fullResponse = StringBuffer();
+      final sentenceBuffer = StringBuffer();
+
+      await for (final token in runGriotCoreLoop.stream(
         input,
         conversationHistory: _conversationHistory,
-      );
+      )) {
+        fullResponse.write(token);
+        sentenceBuffer.write(token);
+
+        emit(GriotSpeaking(fullResponse.toString()));
+
+        final currentSentence = sentenceBuffer.toString();
+
+        if (_endsSentence(currentSentence)) {
+          final sentence = currentSentence.trim();
+          sentenceBuffer.clear();
+
+          if (sentence.isNotEmpty) {
+            await speechOutputService.speak(sentence);
+          }
+        }
+      }
+
+      final leftover = sentenceBuffer.toString().trim();
+
+      if (leftover.isNotEmpty) {
+        await speechOutputService.speak(leftover);
+      }
+
+      final finalResponse = fullResponse.toString().trim();
+
       _conversationHistory.add(
-        ConversationMessage(role: 'assistant', content: response),
+        ConversationMessage(role: 'assistant', content: finalResponse),
       );
 
-      emit(GriotSpeaking(response));
-      await speechOutputService.speak(response);
+      emit(GriotSpeaking(finalResponse));
     } catch (e) {
       const fallbackMessage = 'Something went wrong.';
 
@@ -75,6 +106,36 @@ class GriotCubit extends Cubit<GriotState> {
       await speechOutputService.speak(fallbackMessage);
     }
   }
+
+  // Future<void> submitTextInput(String input, {bool emitThinking = true}) async {
+  //   if (input.trim().isEmpty) return;
+  //
+  //   if (emitThinking) {
+  //     emit(const GriotThinking());
+  //   }
+  //
+  //   try {
+  //     _conversationHistory.add(
+  //       ConversationMessage(role: 'user', content: input),
+  //     );
+  //
+  //     final response = await runGriotCoreLoop(
+  //       input,
+  //       conversationHistory: _conversationHistory,
+  //     );
+  //     _conversationHistory.add(
+  //       ConversationMessage(role: 'assistant', content: response),
+  //     );
+  //
+  //     emit(GriotSpeaking(response));
+  //     await speechOutputService.speak(response);
+  //   } catch (e) {
+  //     const fallbackMessage = 'Something went wrong.';
+  //
+  //     emit(const GriotError(fallbackMessage));
+  //     await speechOutputService.speak(fallbackMessage);
+  //   }
+  // }
 
   Future<void> stopSpeaking() async {
     await speechOutputService.stop();
@@ -86,5 +147,13 @@ class GriotCubit extends Cubit<GriotState> {
 
   void resetToIdle() {
     emit(const GriotIdle());
+  }
+
+  bool _endsSentence(String text) {
+    final trimmed = text.trim();
+    return trimmed.endsWith('.') ||
+        trimmed.endsWith('?') ||
+        trimmed.endsWith('!') ||
+        trimmed.endsWith('\n');
   }
 }

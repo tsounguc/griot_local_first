@@ -32,6 +32,10 @@ final class GriotSpeaking extends GriotState {
   List<Object?> get props => [response];
 }
 
+final class GriotTranscribing extends GriotState {
+  const GriotTranscribing();
+}
+
 final class GriotError extends GriotState {
   const GriotError(this.message);
 

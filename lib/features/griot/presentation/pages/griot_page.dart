@@ -29,11 +29,20 @@ class GriotPage extends StatelessWidget {
         builder: (context, state) {
           final isListening = state is GriotListening;
           final isThinking = state is GriotThinking;
+          final isTranscribing = state is GriotTranscribing;
 
           String response = '';
 
           if (state is GriotListening) {
             response = 'Listening... tap stop when you are done.';
+          }
+
+          if (state is GriotTranscribing) {
+            response = 'Transcribing audio locally...';
+          }
+
+          if (state is GriotThinking) {
+            response = 'Thinking...';
           }
 
           if (state is GriotSpeaking) {
@@ -47,9 +56,14 @@ class GriotPage extends StatelessWidget {
           return Column(
             children: [
               Expanded(
-                child: isThinking
-                    ? const GriotLoadingIndicator()
-                    : GriotResponse(response: response),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (isThinking || isTranscribing)
+                      const GriotLoadingIndicator(),
+                    if (response.isNotEmpty) GriotResponse(response: response),
+                  ],
+                ),
               ),
               GriotInput(
                 isLoading: isThinking,
