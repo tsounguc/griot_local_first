@@ -26,9 +26,16 @@ class SelectModelRoute {
       );
     }
 
+    if (_needsDeeperReasoning(lower)) {
+      return const GriotModelRoute(
+        taskType: GriotTaskType.general,
+        modelName: 'qwen3:8b',
+      );
+    }
+
     return const GriotModelRoute(
       taskType: GriotTaskType.general,
-      modelName: 'qwen3:8b',
+      modelName: 'qwen3:1.7b',
     );
   }
 
@@ -62,5 +69,14 @@ class SelectModelRoute {
         input.contains('cubit') ||
         input.contains('pointer') ||
         input.contains('memory leak');
+  }
+
+  bool _needsDeeperReasoning(String input) {
+    return input.length > 120 ||
+        input.contains('explain') ||
+        input.contains('why') ||
+        input.contains('architecture') ||
+        input.contains('strategy') ||
+        input.contains('compare');
   }
 }

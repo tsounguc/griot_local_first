@@ -65,6 +65,8 @@ class GriotCubit extends Cubit<GriotState> {
   //     final fullResponse = StringBuffer();
   //     final sentenceBuffer = StringBuffer();
   //
+  //     final route = runGriotCoreLoop.selectRoute(input);
+  //
   //     await for (final token in runGriotCoreLoop.stream(
   //       input,
   //       conversationHistory: _conversationHistory,
@@ -72,7 +74,13 @@ class GriotCubit extends Cubit<GriotState> {
   //       fullResponse.write(token);
   //       sentenceBuffer.write(token);
   //
-  //       emit(GriotSpeaking(fullResponse.toString()));
+  //       emit(
+  //         GriotSpeaking(
+  //           response: fullResponse.toString(),
+  //           model: route.modelName,
+  //           taskType: route.taskType.name,
+  //         ),
+  //       );
   //
   //       final currentSentence = sentenceBuffer.toString();
   //
@@ -98,7 +106,13 @@ class GriotCubit extends Cubit<GriotState> {
   //       ConversationMessage(role: 'assistant', content: finalResponse),
   //     );
   //
-  //     emit(GriotSpeaking(finalResponse));
+  //     emit(
+  //       GriotSpeaking(
+  //         response: finalResponse,
+  //         model: route.modelName,
+  //         taskType: route.taskType.name,
+  //       ),
+  //     );
   //   } catch (e) {
   //     const fallbackMessage = 'Something went wrong.';
   //
@@ -118,6 +132,7 @@ class GriotCubit extends Cubit<GriotState> {
       _conversationHistory.add(
         ConversationMessage(role: 'user', content: input),
       );
+      final route = runGriotCoreLoop.selectRoute(input);
 
       final response = await runGriotCoreLoop(
         input,
@@ -127,7 +142,13 @@ class GriotCubit extends Cubit<GriotState> {
         ConversationMessage(role: 'assistant', content: response),
       );
 
-      emit(GriotSpeaking(response));
+      emit(
+        GriotSpeaking(
+          response: response,
+          model: route.modelName,
+          taskType: route.taskType.name,
+        ),
+      );
       await speechOutputService.speak(response);
     } catch (e) {
       const fallbackMessage = 'Something went wrong.';

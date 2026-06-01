@@ -62,6 +62,17 @@ class GriotPage extends StatelessWidget {
                     if (isThinking || isTranscribing)
                       const GriotLoadingIndicator(),
                     if (response.isNotEmpty) GriotResponse(response: response),
+
+                    if (state is GriotSpeaking)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          '${state.taskType.toUpperCase()} • ${state.model}',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                        ),
+                      ),
                   ],
                 ),
               ),

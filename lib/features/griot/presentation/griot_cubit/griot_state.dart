@@ -24,12 +24,18 @@ final class GriotThinking extends GriotState {
 }
 
 final class GriotSpeaking extends GriotState {
-  const GriotSpeaking(this.response);
+  const GriotSpeaking({
+    required this.response,
+    required this.model,
+    required this.taskType,
+  });
 
   final String response;
+  final String model;
+  final String taskType;
 
   @override
-  List<Object?> get props => [response];
+  List<Object?> get props => [response, model, taskType];
 }
 
 final class GriotTranscribing extends GriotState {

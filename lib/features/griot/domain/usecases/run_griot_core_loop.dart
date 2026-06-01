@@ -1,20 +1,15 @@
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/entities/griot_memory.dart';
+import 'package:griot/features/griot/domain/entities/griot_model_route.dart';
 import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
+import 'package:griot/features/griot/domain/usecases/build_prompt.dart';
 import 'package:griot/features/griot/domain/usecases/calculate_memory_importance.dart';
 import 'package:griot/features/griot/domain/usecases/normalize_memory.dart';
 import 'package:griot/features/griot/domain/usecases/select_model_route.dart';
 import 'package:griot/features/griot/domain/usecases/should_remember.dart';
 
-import 'build_prompt.dart';
-
 class RunGriotCoreLoop {
-  final MemoryRepository memoryRepository;
-  final LLMGateway llmGateway;
-  final BuildPrompt buildPrompt;
-  final SelectModelRoute selectModelRoute;
-
   RunGriotCoreLoop({
     required this.memoryRepository,
     required this.llmGateway,
@@ -22,18 +17,42 @@ class RunGriotCoreLoop {
     required this.selectModelRoute,
   });
 
+  final MemoryRepository memoryRepository;
+  final LLMGateway llmGateway;
+  final BuildPrompt buildPrompt;
+  final SelectModelRoute selectModelRoute;
+
+  GriotModelRoute selectRoute(String input) {
+    return selectModelRoute(input);
+  }
+
   Future<String> call(
     String userInput, {
     List<ConversationMessage> conversationHistory = const [],
   }) async {
-    final memories = await memoryRepository.searchMemories(userInput);
+    final route = selectModelRoute(userInput);
+
+    final matchingMemories = await memoryRepository.searchMemories(userInput);
+    final recentMemories = await memoryRepository.getRecentMemories();
+
+    final identityMemories = _isIdentityQuery(userInput)
+        ? await memoryRepository.searchMemories('user name identity')
+        : <GriotMemory>[];
+
+    final memories = {
+      for (final memory in [
+        ...identityMemories,
+        ...matchingMemories,
+        ...recentMemories,
+      ])
+        memory.id: memory,
+    }.values.toList();
 
     final prompt = buildPrompt(
       userInput: userInput,
       memories: memories,
       conversationHistory: conversationHistory,
     );
-    final route = selectModelRoute(userInput);
 
     final response = await llmGateway.generateResponse(
       prompt: prompt,
@@ -42,12 +61,13 @@ class RunGriotCoreLoop {
 
     if (shouldRemember(userInput)) {
       final now = DateTime.now();
+      final normalizedMemory = normalizeMemory(userInput);
 
       await memoryRepository.saveMemory(
         GriotMemory(
           id: now.microsecondsSinceEpoch.toString(),
-          content: normalizeMemory(userInput),
-          tags: ['user-input'],
+          content: normalizedMemory,
+          tags: _tagsForMemory(normalizedMemory),
           createdAt: now,
           updatedAt: now,
           importance: calculateMemoryImportance(userInput),
@@ -58,50 +78,26 @@ class RunGriotCoreLoop {
     return response;
   }
 
-  Stream<String> stream(
-    String userInput, {
-    List<ConversationMessage> conversationHistory = const [],
-  }) async* {
-    final matchingMemories = await memoryRepository.searchMemories(userInput);
-    final recentMemories = await memoryRepository.getRecentMemories();
+  bool _isIdentityQuery(String input) {
+    final lower = input.toLowerCase();
 
-    final memories = {
-      for (final memory in [...matchingMemories, ...recentMemories])
-        memory.id: memory,
-    }.values.toList();
+    return lower.contains('what is my name') ||
+        lower.contains("what's my name") ||
+        lower.contains('who am i') ||
+        lower.contains('who am i?');
+  }
 
-    final prompt = buildPrompt(
-      userInput: userInput,
-      memories: memories,
-      conversationHistory: conversationHistory,
-    );
+  List<String> _tagsForMemory(String normalizedMemory) {
+    final lower = normalizedMemory.toLowerCase();
 
-    final buffer = StringBuffer();
-
-    final route = selectModelRoute(userInput);
-    await for (final token in llmGateway.streamResponse(
-      prompt: prompt,
-      model: route.modelName,
-    )) {
-      buffer.write(token);
-      yield token;
+    if (lower.contains('user\'s name')) {
+      return ['user-input', 'identity', 'name'];
     }
 
-    final fullResponse = buffer.toString();
-
-    if (shouldRemember(userInput)) {
-      final now = DateTime.now();
-
-      await memoryRepository.saveMemory(
-        GriotMemory(
-          id: now.microsecondsSinceEpoch.toString(),
-          content: normalizeMemory(userInput),
-          tags: ['user-input'],
-          createdAt: now,
-          updatedAt: now,
-          importance: calculateMemoryImportance(userInput),
-        ),
-      );
+    if (lower.contains('goal')) {
+      return ['user-input', 'goal'];
     }
+
+    return ['user-input'];
   }
 }
