@@ -13,6 +13,7 @@ import 'package:griot/features/griot/domain/usecases/build_prompt.dart';
 import 'package:griot/features/griot/domain/usecases/delete_memory.dart';
 import 'package:griot/features/griot/domain/usecases/get_all_memories.dart';
 import 'package:griot/features/griot/domain/usecases/run_griot_core_loop.dart';
+import 'package:griot/features/griot/domain/usecases/select_model_route.dart';
 import 'package:griot/features/griot/presentation/griot_cubit/griot_cubit.dart';
 import 'package:griot/features/griot/presentation/memory_cubit/memory_cubit.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -49,11 +50,13 @@ Future<void> initDependencies() async {
         memoryRepository: serviceLocator(),
         llmGateway: serviceLocator(),
         buildPrompt: serviceLocator(),
+        selectModelRoute: serviceLocator(),
       ),
     )
     ..registerLazySingleton(() => GetAllMemories(serviceLocator()))
     ..registerLazySingleton(() => BuildPrompt())
     ..registerLazySingleton(() => DeleteMemory(serviceLocator()))
+    ..registerLazySingleton(() => SelectModelRoute())
     // repositories
     ..registerLazySingleton<MemoryRepository>(
       () => HiveMemoryRepository(memoryBox),

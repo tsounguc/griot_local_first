@@ -5,17 +5,16 @@ import 'package:http/http.dart' as http;
 
 class LocalOllamaGateWay implements LLMGateway {
   @override
-  Future<String> generateResponse({required String prompt}) async {
+  Future<String> generateResponse({
+    required String prompt,
+    required String model,
+  }) async {
     final String baseUrl = 'http://127.0.0.1:11434/api/generate';
     try {
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'model': 'qwen3:8b',
-          'prompt': prompt,
-          'stream': false,
-        }),
+        body: jsonEncode({'model': model, 'prompt': prompt, 'stream': false}),
       );
 
       if (response.statusCode == 200) {
@@ -28,7 +27,10 @@ class LocalOllamaGateWay implements LLMGateway {
   }
 
   @override
-  Stream<String> streamResponse({required String prompt}) async* {
+  Stream<String> streamResponse({
+    required String prompt,
+    required String model,
+  }) async* {
     final request = http.Request(
       'POST',
       Uri.parse('http://127.0.0.1:11434/api/generate'),
@@ -36,7 +38,7 @@ class LocalOllamaGateWay implements LLMGateway {
 
     request.headers['Content-Type'] = 'application/json';
     request.body = jsonEncode({
-      'model': 'qwen3:8b',
+      'model': model,
       'prompt': prompt,
       'stream': true,
     });

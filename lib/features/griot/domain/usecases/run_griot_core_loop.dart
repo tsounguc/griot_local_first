@@ -4,6 +4,7 @@ import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
 import 'package:griot/features/griot/domain/usecases/calculate_memory_importance.dart';
 import 'package:griot/features/griot/domain/usecases/normalize_memory.dart';
+import 'package:griot/features/griot/domain/usecases/select_model_route.dart';
 import 'package:griot/features/griot/domain/usecases/should_remember.dart';
 
 import 'build_prompt.dart';
@@ -12,11 +13,13 @@ class RunGriotCoreLoop {
   final MemoryRepository memoryRepository;
   final LLMGateway llmGateway;
   final BuildPrompt buildPrompt;
+  final SelectModelRoute selectModelRoute;
 
   RunGriotCoreLoop({
     required this.memoryRepository,
     required this.llmGateway,
     required this.buildPrompt,
+    required this.selectModelRoute,
   });
 
   Future<String> call(
@@ -30,8 +33,12 @@ class RunGriotCoreLoop {
       memories: memories,
       conversationHistory: conversationHistory,
     );
+    final route = selectModelRoute(userInput);
 
-    final response = await llmGateway.generateResponse(prompt: prompt);
+    final response = await llmGateway.generateResponse(
+      prompt: prompt,
+      model: route.modelName,
+    );
 
     if (shouldRemember(userInput)) {
       final now = DateTime.now();
@@ -71,7 +78,11 @@ class RunGriotCoreLoop {
 
     final buffer = StringBuffer();
 
-    await for (final token in llmGateway.streamResponse(prompt: prompt)) {
+    final route = selectModelRoute(userInput);
+    await for (final token in llmGateway.streamResponse(
+      prompt: prompt,
+      model: route.modelName,
+    )) {
       buffer.write(token);
       yield token;
     }
