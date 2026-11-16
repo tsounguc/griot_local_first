@@ -22,7 +22,7 @@ class SelectModelRoute {
     if (_isCodingTask(lower)) {
       return const GriotModelRoute(
         taskType: GriotTaskType.coding,
-        modelName: 'qwen3:8b', // later: DeepSeek / Qwen Coder
+        modelName: 'deepseek-r1:14b',
       );
     }
 

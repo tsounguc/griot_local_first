@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
 import 'package:griot/features/griot/domain/services/voice_input_service.dart';
+import 'package:griot/features/griot/domain/usecases/route_cluster_task.dart';
 import 'package:griot/features/griot/domain/usecases/run_griot_core_loop.dart';
 
 part 'griot_state.dart';
@@ -12,11 +13,14 @@ class GriotCubit extends Cubit<GriotState> {
     required this.runGriotCoreLoop,
     required this.speechOutputService,
     required this.voiceInputService,
+    required this.routeClusterTask,
   }) : super(GriotIdle());
 
   final RunGriotCoreLoop runGriotCoreLoop;
   final SpeechOutputService speechOutputService;
   final VoiceInputService voiceInputService;
+  final RouteClusterTask routeClusterTask;
+
   final List<ConversationMessage> _conversationHistory = [];
 
   Future<void> startVoiceInput() async {
@@ -132,6 +136,57 @@ class GriotCubit extends Cubit<GriotState> {
       _conversationHistory.add(
         ConversationMessage(role: 'user', content: input),
       );
+
+      if (input.startsWith('/summarize ')) {
+        final clusterMessage = input.replaceFirst('/summarize ', '');
+
+        final response = await routeClusterTask(
+          task: 'summarize_text',
+          message: clusterMessage,
+        );
+
+        _conversationHistory.add(
+          ConversationMessage(role: 'assistant', content: response),
+        );
+
+        emit(
+          GriotSpeaking(
+            response: response,
+            model: 'GRIOT Cluster',
+            taskType: 'summarize_text',
+          ),
+        );
+
+        // await speechOutputService.speak(response);
+        await _speakSafely(response);
+        return;
+      }
+
+      if (input.startsWith('/chat ')) {
+        final clusterMessage = input.replaceFirst('/chat ', '');
+
+        final response = await routeClusterTask(
+          task: 'ollama_chat',
+          message: clusterMessage,
+        );
+
+        _conversationHistory.add(
+          ConversationMessage(role: 'assistant', content: response),
+        );
+
+        emit(
+          GriotSpeaking(
+            response: response,
+            model: 'GRIOT Cluster',
+            taskType: 'ollama_chat',
+          ),
+        );
+
+        // await speechOutputService.speak(response);
+        await _speakSafely(response);
+        return;
+      }
+
       final route = runGriotCoreLoop.selectRoute(input);
 
       final response = await runGriotCoreLoop(
@@ -149,12 +204,16 @@ class GriotCubit extends Cubit<GriotState> {
           taskType: route.taskType.name,
         ),
       );
-      await speechOutputService.speak(response);
-    } catch (e) {
-      const fallbackMessage = 'Something went wrong.';
+      // await speechOutputService.speak(response);
+      await _speakSafely(response);
+    } catch (e, stackTrace) {
+      print('GRIOT ERROR: $e');
+      print(stackTrace);
 
-      emit(const GriotError(fallbackMessage));
-      await speechOutputService.speak(fallbackMessage);
+      final fallbackMessage = 'Something went wrong: $e';
+
+      emit(GriotError(fallbackMessage));
+      await speechOutputService.speak('Something went wrong.');
     }
   }
 
@@ -176,5 +235,13 @@ class GriotCubit extends Cubit<GriotState> {
         trimmed.endsWith('?') ||
         trimmed.endsWith('!') ||
         trimmed.endsWith('\n');
+  }
+
+  Future<void> _speakSafely(String text) async {
+    try {
+      await speechOutputService.speak(text);
+    } catch (e) {
+      print('GRIOT speech output unavailable: $e');
+    }
   }
 }

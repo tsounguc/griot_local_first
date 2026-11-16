@@ -1,8 +1,10 @@
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/entities/griot_memory.dart';
 import 'package:griot/features/griot/domain/entities/griot_model_route.dart';
+import 'package:griot/features/griot/domain/entities/griot_task_type.dart';
 import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
+import 'package:griot/features/griot/domain/usecases/build_coding_prompt.dart';
 import 'package:griot/features/griot/domain/usecases/build_prompt.dart';
 import 'package:griot/features/griot/domain/usecases/calculate_memory_importance.dart';
 import 'package:griot/features/griot/domain/usecases/normalize_memory.dart';
@@ -14,12 +16,14 @@ class RunGriotCoreLoop {
     required this.memoryRepository,
     required this.llmGateway,
     required this.buildPrompt,
+    required this.buildCodingPrompt,
     required this.selectModelRoute,
   });
 
   final MemoryRepository memoryRepository;
   final LLMGateway llmGateway;
   final BuildPrompt buildPrompt;
+  final BuildCodingPrompt buildCodingPrompt;
   final SelectModelRoute selectModelRoute;
 
   GriotModelRoute selectRoute(String input) {
@@ -31,6 +35,13 @@ class RunGriotCoreLoop {
     List<ConversationMessage> conversationHistory = const [],
   }) async {
     final route = selectModelRoute(userInput);
+
+    final recentConversation = conversationHistory.isEmpty
+        ? 'No recent conversation.'
+        : conversationHistory
+              .take(8)
+              .map((m) => '${m.role}: ${m.content}')
+              .join('\n');
 
     final matchingMemories = await memoryRepository.searchMemories(userInput);
     final recentMemories = await memoryRepository.getRecentMemories();
@@ -48,11 +59,16 @@ class RunGriotCoreLoop {
         memory.id: memory,
     }.values.toList();
 
-    final prompt = buildPrompt(
-      userInput: userInput,
-      memories: memories,
-      conversationHistory: conversationHistory,
-    );
+    final prompt = route.taskType == GriotTaskType.coding
+        ? buildCodingPrompt(
+            userInput: userInput,
+            recentConversation: recentConversation,
+          )
+        : buildPrompt(
+            userInput: userInput,
+            memories: memories,
+            conversationHistory: conversationHistory,
+          );
 
     final response = await llmGateway.generateResponse(
       prompt: prompt,
