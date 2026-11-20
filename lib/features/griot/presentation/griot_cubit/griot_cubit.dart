@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
@@ -133,16 +134,17 @@ class GriotCubit extends Cubit<GriotState> {
     }
 
     try {
-      _conversationHistory.add(
-        ConversationMessage(role: 'user', content: input),
-      );
-
+      // Handle distributed summarization.
       if (input.startsWith('/summarize ')) {
         final clusterMessage = input.replaceFirst('/summarize ', '');
 
         final response = await routeClusterTask(
           task: 'summarize_text',
           message: clusterMessage,
+        );
+
+        _conversationHistory.add(
+          ConversationMessage(role: 'user', content: input),
         );
 
         _conversationHistory.add(
@@ -157,17 +159,21 @@ class GriotCubit extends Cubit<GriotState> {
           ),
         );
 
-        // await speechOutputService.speak(response);
         await _speakSafely(response);
         return;
       }
 
+      // Handle distributed chat.
       if (input.startsWith('/chat ')) {
         final clusterMessage = input.replaceFirst('/chat ', '');
 
         final response = await routeClusterTask(
           task: 'ollama_chat',
           message: clusterMessage,
+        );
+
+        _conversationHistory.add(
+          ConversationMessage(role: 'user', content: input),
         );
 
         _conversationHistory.add(
@@ -182,38 +188,47 @@ class GriotCubit extends Cubit<GriotState> {
           ),
         );
 
-        // await speechOutputService.speak(response);
         await _speakSafely(response);
         return;
       }
 
-      final route = runGriotCoreLoop.selectRoute(input);
-
-      final response = await runGriotCoreLoop(
+      // Execute GRIOT's core conversation loop.
+      // Pass only previous conversation turns.
+      final conversationResults = await runGriotCoreLoop(
         input,
-        conversationHistory: _conversationHistory,
-      );
-      _conversationHistory.add(
-        ConversationMessage(role: 'assistant', content: response),
+        conversationHistory: List.unmodifiable(_conversationHistory),
       );
 
-      emit(
-        GriotSpeaking(
-          response: response,
-          model: route.modelName,
-          taskType: route.taskType.name,
+      // Record the completed conversation turn.
+      _conversationHistory.add(
+        ConversationMessage(role: 'user', content: input),
+      );
+
+      _conversationHistory.add(
+        ConversationMessage(
+          role: 'assistant',
+          content: conversationResults.response,
         ),
       );
-      // await speechOutputService.speak(response);
-      await _speakSafely(response);
+
+      // Update the UI with the response and selected model.
+      emit(
+        GriotSpeaking(
+          response: conversationResults.response,
+          model: conversationResults.route.modelName,
+          taskType: conversationResults.route.taskType.name,
+        ),
+      );
+
+      await _speakSafely(conversationResults.response);
     } catch (e, stackTrace) {
-      print('GRIOT ERROR: $e');
-      print(stackTrace);
+      debugPrint('GRIOT ERROR: $e');
+      debugPrint('$stackTrace');
 
       final fallbackMessage = 'Something went wrong: $e';
 
       emit(GriotError(fallbackMessage));
-      await speechOutputService.speak('Something went wrong.');
+      await _speakSafely('Something went wrong.');
     }
   }
 
@@ -229,19 +244,11 @@ class GriotCubit extends Cubit<GriotState> {
     emit(const GriotIdle());
   }
 
-  bool _endsSentence(String text) {
-    final trimmed = text.trim();
-    return trimmed.endsWith('.') ||
-        trimmed.endsWith('?') ||
-        trimmed.endsWith('!') ||
-        trimmed.endsWith('\n');
-  }
-
   Future<void> _speakSafely(String text) async {
     try {
       await speechOutputService.speak(text);
     } catch (e) {
-      print('GRIOT speech output unavailable: $e');
+      debugPrint('GRIOT speech output unavailable: $e');
     }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
+import 'package:griot/features/griot/domain/entities/griot_conversation_result.dart';
 import 'package:griot/features/griot/domain/entities/griot_memory.dart';
 import 'package:griot/features/griot/domain/entities/griot_model_route.dart';
 import 'package:griot/features/griot/domain/entities/griot_task_type.dart';
@@ -30,18 +31,19 @@ class RunGriotCoreLoop {
     return selectModelRoute(input);
   }
 
-  Future<String> call(
+  Future<GriotConversationResult> call(
     String userInput, {
     List<ConversationMessage> conversationHistory = const [],
   }) async {
     final route = selectModelRoute(userInput);
 
-    final recentConversation = conversationHistory.isEmpty
+    final recentMessages = conversationHistory.length <= 8
+        ? conversationHistory
+        : conversationHistory.sublist(conversationHistory.length - 8);
+
+    final recentConversation = recentMessages.isEmpty
         ? 'No recent conversation.'
-        : conversationHistory
-              .take(8)
-              .map((m) => '${m.role}: ${m.content}')
-              .join('\n');
+        : recentMessages.map((m) => '${m.role}: ${m.content}').join('\n');
 
     final matchingMemories = await memoryRepository.searchMemories(userInput);
     final recentMemories = await memoryRepository.getRecentMemories();
@@ -91,7 +93,7 @@ class RunGriotCoreLoop {
       );
     }
 
-    return response;
+    return GriotConversationResult(response: response, route: route);
   }
 
   bool _isIdentityQuery(String input) {

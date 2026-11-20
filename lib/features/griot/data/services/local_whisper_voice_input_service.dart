@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:griot/features/griot/domain/services/voice_input_service.dart';
 
 class LocalWhisperVoiceInputService implements VoiceInputService {
@@ -24,8 +25,8 @@ class LocalWhisperVoiceInputService implements VoiceInputService {
       await file.delete();
     }
 
-    print('GRIOT: Starting microphone recording');
-    print('GRIOT: Microphone index: $mic');
+    debugPrint('GRIOT: Starting microphone recording');
+    debugPrint('GRIOT: Microphone index: $mic');
 
     final process = await Process.start('ffmpeg', [
       '-y',
@@ -42,14 +43,14 @@ class LocalWhisperVoiceInputService implements VoiceInputService {
 
     _recordingProcess = process;
 
-    print('GRIOT: FFmpeg PID: ${process.pid}');
+    debugPrint('GRIOT: FFmpeg PID: ${process.pid}');
 
     process.stderr.transform(systemEncoding.decoder).listen((output) {
-      print('GRIOT FFmpeg: $output');
+      debugPrint('GRIOT FFmpeg: $output');
     });
 
     process.stdout.transform(systemEncoding.decoder).listen((output) {
-      print('GRIOT FFmpeg stdout: $output');
+      debugPrint('GRIOT FFmpeg stdout: $output');
     });
   }
 
