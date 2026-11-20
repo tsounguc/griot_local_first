@@ -5,12 +5,13 @@ import 'package:griot/features/griot/domain/services/voice_input_service.dart';
 class LocalWhisperVoiceInputService implements VoiceInputService {
   LocalWhisperVoiceInputService({
     this.audioPath = '/tmp/griot_voice_input.wav',
+    this.mic = 2,
     this.modelPath,
   });
 
   final String audioPath;
   final String? modelPath;
-
+  final int mic;
   Process? _recordingProcess;
 
   @override
@@ -18,22 +19,38 @@ class LocalWhisperVoiceInputService implements VoiceInputService {
     if (_recordingProcess != null) return;
 
     final file = File(audioPath);
+
     if (await file.exists()) {
       await file.delete();
     }
 
-    _recordingProcess = await Process.start('ffmpeg', [
+    print('GRIOT: Starting microphone recording');
+    print('GRIOT: Microphone index: $mic');
+
+    final process = await Process.start('ffmpeg', [
       '-y',
       '-f',
       'avfoundation',
       '-i',
-      ':0',
+      ':$mic',
       '-ar',
       '16000',
       '-ac',
       '1',
       audioPath,
-    ], runInShell: true);
+    ], runInShell: false);
+
+    _recordingProcess = process;
+
+    print('GRIOT: FFmpeg PID: ${process.pid}');
+
+    process.stderr.transform(systemEncoding.decoder).listen((output) {
+      print('GRIOT FFmpeg: $output');
+    });
+
+    process.stdout.transform(systemEncoding.decoder).listen((output) {
+      print('GRIOT FFmpeg stdout: $output');
+    });
   }
 
   @override
