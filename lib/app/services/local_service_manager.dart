@@ -6,7 +6,6 @@ class LocalServiceManager {
   static const String ollamaUrl = 'http://127.0.0.1:11434';
   static const String kokoroUrl = 'http://127.0.0.1:8765';
 
-  Process? _ollamaProcess;
   Process? _kokoroProcess;
 
   Future<void> startOllama() async {
@@ -22,7 +21,7 @@ class LocalServiceManager {
 
     // detachedWithStdio lets the process continue independently.
     // This is convenient initially, but we'll need a deliberate shutdown strategy later.
-    _ollamaProcess = await Process.start('ollama', [
+    await Process.start('ollama', [
       'serve',
     ], mode: ProcessStartMode.detachedWithStdio);
 
@@ -40,16 +39,6 @@ class LocalServiceManager {
     throw StateError('Ollama did not become ready within the startup period.');
   }
 
-  // Instead of activating the environment through a shell, Dart can launch its Python interpreter directly:
-  // Process.start(
-  // '/Users/<your-username>/griot-kokoro-env/bin/python',
-  // ['kokoro_server.py'],
-  // workingDirectory: '/Users/<your-username>/griot-tools/kokoro',
-  // );
-  //
-  //
-  // We'll use Platform.environment['HOME'] to construct those paths rather than hardcoding your username.
-
   // GRIOT is becoming a process supervisor.
   //
   // It's beginning to manage a collection of independent programs that
@@ -57,7 +46,7 @@ class LocalServiceManager {
   // version of what operating systems and distributed orchestration systems do.
   Future<void> startKokoro() async {
     if (await isKokoroRunning()) {
-      print('Kokoro is already running.');
+      debugPrint('Kokoro is already running.');
       return;
     }
 
@@ -79,7 +68,7 @@ class LocalServiceManager {
       throw StateError('Kokoro server script not found: $serverPath');
     }
 
-    print('Starting Kokoro...');
+    debugPrint('Starting Kokoro...');
 
     _kokoroProcess = await Process.start(
       pythonPath,
@@ -91,17 +80,17 @@ class LocalServiceManager {
     // Consume both streams to avoid filling OS pipe buffers.
     _kokoroProcess!.stdout
         .transform(systemEncoding.decoder)
-        .listen((message) => print('Kokoro: $message'));
+        .listen((message) => debugPrint('Kokoro: $message'));
 
     _kokoroProcess!.stderr
         .transform(systemEncoding.decoder)
-        .listen((message) => print('Kokoro error: $message'));
+        .listen((message) => debugPrint('Kokoro error: $message'));
 
     // Kokoro can take longer to initialize because it loads
     // a neural network before the HTTP server becomes ready.
     for (int attempt = 0; attempt < 90; attempt++) {
       if (await isKokoroRunning()) {
-        print('Kokoro is ready.');
+        debugPrint('Kokoro is ready.');
         return;
       }
 

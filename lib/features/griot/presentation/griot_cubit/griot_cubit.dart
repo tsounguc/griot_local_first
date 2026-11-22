@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
+import 'package:griot/features/griot/domain/services/conversation_session_manager.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
 import 'package:griot/features/griot/domain/services/voice_input_service.dart';
 import 'package:griot/features/griot/domain/usecases/route_cluster_task.dart';
@@ -15,14 +16,47 @@ class GriotCubit extends Cubit<GriotState> {
     required this.speechOutputService,
     required this.voiceInputService,
     required this.routeClusterTask,
+    required this.sessionManager,
   }) : super(GriotIdle());
 
   final RunGriotCoreLoop runGriotCoreLoop;
   final SpeechOutputService speechOutputService;
   final VoiceInputService voiceInputService;
   final RouteClusterTask routeClusterTask;
+  final ConversationSessionManager sessionManager;
 
-  final List<ConversationMessage> _conversationHistory = [];
+  String? _activeSessionId;
+  Future<String>? _pendingSessionCreation;
+
+  Future<String> _ensureActiveSession() async {
+    // A session already exists.
+    if (_activeSessionId != null) {
+      return Future.value(_activeSessionId!);
+    }
+
+    // A session is currently being created.
+    // Reuse the existing Future instead of creating another session.
+    if (_pendingSessionCreation != null) {
+      return _pendingSessionCreation!;
+    }
+
+    // No session exists and no creation is in progress.
+    final creation = _createActiveSession();
+    _pendingSessionCreation = creation;
+
+    return creation;
+  }
+
+  Future<String> _createActiveSession() async {
+    try {
+      final session = await sessionManager.createSession();
+      _activeSessionId = session.id;
+
+      return session.id;
+    } finally {
+      _pendingSessionCreation = null;
+    }
+  }
 
   Future<void> startVoiceInput() async {
     try {
@@ -55,180 +89,93 @@ class GriotCubit extends Cubit<GriotState> {
     }
   }
 
-  // Future<void> submitTextInput(String input, {bool emitThinking = true}) async {
-  //   if (input.trim().isEmpty) return;
-  //
-  //   if (emitThinking) {
-  //     emit(const GriotThinking());
-  //   }
-  //
-  //   try {
-  //     _conversationHistory.add(
-  //       ConversationMessage(role: 'user', content: input),
-  //     );
-  //
-  //     final fullResponse = StringBuffer();
-  //     final sentenceBuffer = StringBuffer();
-  //
-  //     final route = runGriotCoreLoop.selectRoute(input);
-  //
-  //     await for (final token in runGriotCoreLoop.stream(
-  //       input,
-  //       conversationHistory: _conversationHistory,
-  //     )) {
-  //       fullResponse.write(token);
-  //       sentenceBuffer.write(token);
-  //
-  //       emit(
-  //         GriotSpeaking(
-  //           response: fullResponse.toString(),
-  //           model: route.modelName,
-  //           taskType: route.taskType.name,
-  //         ),
-  //       );
-  //
-  //       final currentSentence = sentenceBuffer.toString();
-  //
-  //       if (_endsSentence(currentSentence)) {
-  //         final sentence = currentSentence.trim();
-  //         sentenceBuffer.clear();
-  //
-  //         if (sentence.isNotEmpty) {
-  //           await speechOutputService.speak(sentence);
-  //         }
-  //       }
-  //     }
-  //
-  //     final leftover = sentenceBuffer.toString().trim();
-  //
-  //     if (leftover.isNotEmpty) {
-  //       await speechOutputService.speak(leftover);
-  //     }
-  //
-  //     final finalResponse = fullResponse.toString().trim();
-  //
-  //     _conversationHistory.add(
-  //       ConversationMessage(role: 'assistant', content: finalResponse),
-  //     );
-  //
-  //     emit(
-  //       GriotSpeaking(
-  //         response: finalResponse,
-  //         model: route.modelName,
-  //         taskType: route.taskType.name,
-  //       ),
-  //     );
-  //   } catch (e) {
-  //     const fallbackMessage = 'Something went wrong.';
-  //
-  //     emit(const GriotError(fallbackMessage));
-  //     await speechOutputService.speak(fallbackMessage);
-  //   }
-  // }
-
   Future<void> submitTextInput(String input, {bool emitThinking = true}) async {
     if (input.trim().isEmpty) return;
+
+    // Capture the session identity for this request.
+    String? requestSessionId;
 
     if (emitThinking) {
       emit(const GriotThinking());
     }
 
     try {
+      requestSessionId = await _ensureActiveSession();
+
+      // Retrieve the conversation before appending the new message.
+      final session = await sessionManager.getSession(requestSessionId);
+
+      if (session == null) {
+        throw StateError('Session $requestSessionId does not exist');
+      }
+
+      final previousHistory = List<ConversationMessage>.unmodifiable(
+        session.messages,
+      );
+
+      await sessionManager.addMessage(
+        ConversationMessage(role: 'user', content: input),
+        requestSessionId,
+      );
+
+      late final String response;
+      late final String model;
+      late final String taskType;
+
       // Handle distributed summarization.
       if (input.startsWith('/summarize ')) {
-        final clusterMessage = input.replaceFirst('/summarize ', '');
-
-        final response = await routeClusterTask(
+        response = await routeClusterTask(
           task: 'summarize_text',
-          message: clusterMessage,
+          message: input.replaceFirst('/summarize ', ''),
         );
 
-        _conversationHistory.add(
-          ConversationMessage(role: 'user', content: input),
-        );
-
-        _conversationHistory.add(
-          ConversationMessage(role: 'assistant', content: response),
-        );
-
-        emit(
-          GriotSpeaking(
-            response: response,
-            model: 'GRIOT Cluster',
-            taskType: 'summarize_text',
-          ),
-        );
-
-        await _speakSafely(response);
-        return;
+        model = 'GRIOT Cluster';
+        taskType = 'summarize_text';
       }
-
       // Handle distributed chat.
-      if (input.startsWith('/chat ')) {
-        final clusterMessage = input.replaceFirst('/chat ', '');
-
-        final response = await routeClusterTask(
+      else if (input.startsWith('/chat ')) {
+        response = await routeClusterTask(
           task: 'ollama_chat',
-          message: clusterMessage,
+          message: input.replaceFirst('/chat ', ''),
         );
 
-        _conversationHistory.add(
-          ConversationMessage(role: 'user', content: input),
+        model = 'GRIOT Cluster';
+        taskType = 'ollama_chat';
+      } else {
+        final result = await runGriotCoreLoop(
+          input,
+          conversationHistory: previousHistory,
         );
 
-        _conversationHistory.add(
-          ConversationMessage(role: 'assistant', content: response),
-        );
+        response = result.response;
+        model = result.route.modelName;
+        taskType = result.route.taskType.name;
+      }
 
+      // Always append to the originating session
+      await sessionManager.addMessage(
+        ConversationMessage(role: 'assistant', content: response),
+        requestSessionId,
+      );
+
+      // Only update the visible conversation if it is still active
+      if (_activeSessionId == requestSessionId && !isClosed) {
         emit(
-          GriotSpeaking(
-            response: response,
-            model: 'GRIOT Cluster',
-            taskType: 'ollama_chat',
-          ),
+          GriotSpeaking(response: response, model: model, taskType: taskType),
         );
 
         await _speakSafely(response);
-        return;
       }
-
-      // Execute GRIOT's core conversation loop.
-      // Pass only previous conversation turns.
-      final conversationResults = await runGriotCoreLoop(
-        input,
-        conversationHistory: List.unmodifiable(_conversationHistory),
-      );
-
-      // Record the completed conversation turn.
-      _conversationHistory.add(
-        ConversationMessage(role: 'user', content: input),
-      );
-
-      _conversationHistory.add(
-        ConversationMessage(
-          role: 'assistant',
-          content: conversationResults.response,
-        ),
-      );
-
-      // Update the UI with the response and selected model.
-      emit(
-        GriotSpeaking(
-          response: conversationResults.response,
-          model: conversationResults.route.modelName,
-          taskType: conversationResults.route.taskType.name,
-        ),
-      );
-
-      await _speakSafely(conversationResults.response);
     } catch (e, stackTrace) {
       debugPrint('GRIOT ERROR: $e');
       debugPrint('$stackTrace');
 
-      final fallbackMessage = 'Something went wrong: $e';
-
-      emit(GriotError(fallbackMessage));
-      await _speakSafely('Something went wrong.');
+      // Don't display error from an inactive session.
+      if (!isClosed &&
+          (requestSessionId == null || _activeSessionId == requestSessionId)) {
+        emit(GriotError('Something went wrong: $e'));
+        await _speakSafely('Something went wrong.');
+      }
     }
   }
 

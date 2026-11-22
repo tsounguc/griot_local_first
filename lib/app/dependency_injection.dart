@@ -3,11 +3,13 @@ import 'package:griot/features/griot/data/gateways/cluster_gateway.dart';
 import 'package:griot/features/griot/data/gateways/local_ollama_gateway.dart';
 import 'package:griot/features/griot/data/models/griot_memory_model.dart';
 import 'package:griot/features/griot/data/repositories/hive_memory_repository.dart';
-import 'package:griot/features/griot/data/services/flutter_tts_speech_output_service.dart';
+import 'package:griot/features/griot/data/repositories/in_memory_conversation_session_repository.dart';
 import 'package:griot/features/griot/data/services/kokoro_speech_output_service.dart';
 import 'package:griot/features/griot/data/services/local_whisper_voice_input_service.dart';
 import 'package:griot/features/griot/domain/gateways/llm_gateway.dart';
+import 'package:griot/features/griot/domain/repositories/conversation_session_repository.dart';
 import 'package:griot/features/griot/domain/repositories/memory_repository.dart';
+import 'package:griot/features/griot/domain/services/conversation_session_manager.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
 import 'package:griot/features/griot/domain/services/voice_input_service.dart';
 import 'package:griot/features/griot/domain/usecases/build_coding_prompt.dart';
@@ -40,6 +42,7 @@ Future<void> initDependencies() async {
         speechOutputService: serviceLocator(),
         voiceInputService: serviceLocator(),
         routeClusterTask: serviceLocator(),
+        sessionManager: serviceLocator(),
       ),
     )
     ..registerFactory(
@@ -61,6 +64,7 @@ Future<void> initDependencies() async {
     ..registerLazySingleton<RouteClusterTask>(
       () => RouteClusterTask(serviceLocator()),
     )
+    ..registerLazySingleton(() => ConversationSessionManager(serviceLocator()))
     ..registerLazySingleton(() => GetAllMemories(serviceLocator()))
     ..registerLazySingleton(() => BuildPrompt())
     ..registerLazySingleton(() => BuildCodingPrompt())
@@ -69,6 +73,9 @@ Future<void> initDependencies() async {
     // repositories
     ..registerLazySingleton<MemoryRepository>(
       () => HiveMemoryRepository(memoryBox),
+    )
+    ..registerLazySingleton<ConversationSessionRepository>(
+      () => InMemoryConversationSessionRepository(),
     )
     ..registerLazySingleton<LLMGateway>(() => LocalOllamaGateWay())
     ..registerLazySingleton<ClusterGateway>(
