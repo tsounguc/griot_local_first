@@ -72,6 +72,29 @@ class ControlledCoreLoop implements RunGriotCoreLoop {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class DelayedSessionRepository extends CountingSessionRepository {
+  final creationStarted = Completer<void>();
+  final allowCreationToFinish = Completer<void>();
+
+  bool delayNextCreation = false;
+
+  @override
+  Future<void> createSession(ConversationSession session) async {
+    if (delayNextCreation) {
+      delayNextCreation = false;
+
+      if (!creationStarted.isCompleted) {
+        creationStarted.complete();
+      }
+
+      // Hold the creation operation until the test releases it.
+      await allowCreationToFinish.future;
+    }
+
+    await super.createSession(session);
+  }
+}
+
 void main() {
   test('starting a new conversation does not create a session', () async {
     final repository = CountingSessionRepository();
@@ -161,6 +184,101 @@ void main() {
         // A's response must not become B's visible state.
         expect(cubit.state, isA<GriotIdle>());
       } finally {
+        await cubit.close();
+      }
+    },
+  );
+
+  test(
+    'a delayed session creation cannot override a newer selection',
+    () async {
+      final repository = DelayedSessionRepository();
+      final manager = ConversationSessionManager(repository);
+      final coreLoop = ControlledCoreLoop();
+
+      final cubit = GriotCubit(
+        runGriotCoreLoop: coreLoop,
+        speechOutputService: FakeSpeechOutputService(),
+        voiceInputService: FakeVoiceInputService(),
+        routeClusterTask: FakeClusterTask(),
+        sessionManager: manager,
+      );
+
+      Future<void>? pendingRequest;
+
+      try {
+        // Create Session B before enabling the delay.
+        final sessionB = await manager.createSession();
+
+        // Start a new conversation without creating a session yet.
+        cubit.startNewConversation();
+
+        // Delay the next repository creation.
+        repository.delayNextCreation = true;
+
+        // Sending a message triggers lazy session creation.
+        pendingRequest = cubit.submitTextInput('Hello from Session A');
+
+        // Wait until creation is blocked inside the repository.
+        await repository.creationStarted.future;
+
+        // Select B while A's creation is still pending.
+        await cubit.switchConversation(sessionB.id);
+
+        expect(cubit.activeSessionId, sessionB.id);
+
+        // Release the delayed creation of A.
+        repository.allowCreationToFinish.complete();
+
+        // Wait until the request reaches the fake LLM.
+        await coreLoop.started.future;
+
+        // Verify that A's creation did not replace B.
+        expect(cubit.activeSessionId, sessionB.id);
+
+        // Finish the fake LLM request.
+        coreLoop.responseCompleter.complete(
+          GriotConversationResult(
+            response: 'Response for Session A',
+            route: const GriotModelRoute(
+              taskType: GriotTaskType.general,
+              modelName: 'Fake LLM',
+            ),
+          ),
+        );
+
+        await pendingRequest;
+
+        // B must remain selected even after A finishes.
+        expect(cubit.activeSessionId, sessionB.id);
+        expect(cubit.state, isA<GriotIdle>());
+
+        // B must not receive A's messages.
+        final updatedB = await manager.getSession(sessionB.id);
+
+        expect(updatedB, isNotNull);
+        expect(updatedB!.messages, isEmpty);
+      } finally {
+        if (!repository.allowCreationToFinish.isCompleted) {
+          repository.allowCreationToFinish.complete();
+        }
+
+        if (!coreLoop.responseCompleter.isCompleted) {
+          coreLoop.responseCompleter.complete(
+            GriotConversationResult(
+              response: 'Cleanup response',
+              route: const GriotModelRoute(
+                taskType: GriotTaskType.general,
+                modelName: 'Fake LLM',
+              ),
+            ),
+          );
+        }
+
+        if (pendingRequest != null) {
+          await pendingRequest;
+        }
+
         await cubit.close();
       }
     },

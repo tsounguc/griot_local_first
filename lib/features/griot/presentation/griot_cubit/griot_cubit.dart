@@ -29,6 +29,8 @@ class GriotCubit extends Cubit<GriotState> {
   Future<String>? _pendingSessionCreation;
   int _sessionSelectionGeneration = 0;
 
+  String? get activeSessionId => _activeSessionId;
+
   void startNewConversation() {
     _sessionSelectionGeneration++;
     _activeSessionId = null;
