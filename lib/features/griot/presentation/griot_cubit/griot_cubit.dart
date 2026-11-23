@@ -27,35 +27,38 @@ class GriotCubit extends Cubit<GriotState> {
 
   String? _activeSessionId;
   Future<String>? _pendingSessionCreation;
+  int _sessionSelectionGeneration = 0;
 
-  Future<String> _ensureActiveSession() async {
-    // A session already exists.
-    if (_activeSessionId != null) {
-      return Future.value(_activeSessionId!);
+  void startNewConversation() {
+    _sessionSelectionGeneration++;
+    _activeSessionId = null;
+    _pendingSessionCreation = null;
+
+    if (!isClosed) {
+      emit(const GriotIdle());
     }
-
-    // A session is currently being created.
-    // Reuse the existing Future instead of creating another session.
-    if (_pendingSessionCreation != null) {
-      return _pendingSessionCreation!;
-    }
-
-    // No session exists and no creation is in progress.
-    final creation = _createActiveSession();
-    _pendingSessionCreation = creation;
-
-    return creation;
   }
 
-  Future<String> _createActiveSession() async {
-    try {
-      final session = await sessionManager.createSession();
-      _activeSessionId = session.id;
+  Future<void> switchConversation(String sessionId) async {
+    final generation = ++_sessionSelectionGeneration;
+    _activeSessionId = null;
+    _pendingSessionCreation = null;
 
-      return session.id;
-    } finally {
-      _pendingSessionCreation = null;
+    final session = await sessionManager.getSession(sessionId);
+
+    // Ignore the result if another selection happened
+    // while we were retrieving the session
+    if (_sessionSelectionGeneration != generation || isClosed) {
+      return;
     }
+
+    if (session == null) {
+      emit(GriotError('Conversation not found.'));
+      return;
+    }
+
+    _activeSessionId = session.id;
+    emit(const GriotIdle());
   }
 
   Future<void> startVoiceInput() async {
@@ -189,6 +192,44 @@ class GriotCubit extends Cubit<GriotState> {
 
   void resetToIdle() {
     emit(const GriotIdle());
+  }
+
+  Future<String> _ensureActiveSession() async {
+    // A session already exists.
+    if (_activeSessionId != null) {
+      return Future.value(_activeSessionId!);
+    }
+
+    // A session is currently being created.
+    // Reuse the existing Future instead of creating another session.
+    if (_pendingSessionCreation != null) {
+      return _pendingSessionCreation!;
+    }
+
+    // No session exists and no creation is in progress.
+    final generation = ++_sessionSelectionGeneration;
+    final creation = _createActiveSession(generation);
+    _pendingSessionCreation = creation;
+
+    return creation;
+  }
+
+  Future<String> _createActiveSession(int generation) async {
+    try {
+      final session = await sessionManager.createSession();
+
+      // Only activate this session if user hasn't
+      // changed their selection while creation was pending
+      if (_sessionSelectionGeneration == generation) {
+        _activeSessionId = session.id;
+      }
+
+      return session.id;
+    } finally {
+      if (_sessionSelectionGeneration == generation) {
+        _pendingSessionCreation = null;
+      }
+    }
   }
 
   Future<void> _speakSafely(String text) async {
