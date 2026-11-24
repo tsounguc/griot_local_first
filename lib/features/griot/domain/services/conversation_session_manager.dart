@@ -3,6 +3,8 @@ import 'package:griot/features/griot/domain/entities/conversation_session.dart';
 import 'package:griot/features/griot/domain/repositories/conversation_session_repository.dart';
 import 'package:uuid/uuid.dart';
 
+import '../entities/new_conversation_message.dart';
+
 class ConversationSessionManager {
   ConversationSessionManager(this._repository);
 
@@ -29,6 +31,8 @@ class ConversationSessionManager {
 
   Future<void> deleteSession(String id) => _repository.deleteSession(id);
 
-  Future<void> addMessage(ConversationMessage message, String sessionId) =>
-      _repository.appendMessage(sessionId, message);
+  Future<ConversationMessage> addMessage(
+    NewConversationMessage message,
+    String sessionId,
+  ) => _repository.appendMessage(sessionId, message);
 }

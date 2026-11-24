@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
+import 'package:griot/features/griot/domain/entities/new_conversation_message.dart';
 import 'package:griot/features/griot/domain/services/conversation_session_manager.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
 import 'package:griot/features/griot/domain/services/voice_input_service.dart';
@@ -119,7 +120,7 @@ class GriotCubit extends Cubit<GriotState> {
       );
 
       await sessionManager.addMessage(
-        ConversationMessage(role: 'user', content: input),
+        NewConversationMessage(role: 'user', content: input),
         requestSessionId,
       );
 
@@ -159,7 +160,7 @@ class GriotCubit extends Cubit<GriotState> {
 
       // Always append to the originating session
       await sessionManager.addMessage(
-        ConversationMessage(role: 'assistant', content: response),
+        NewConversationMessage(role: 'assistant', content: response),
         requestSessionId,
       );
 

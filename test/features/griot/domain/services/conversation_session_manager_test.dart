@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:griot/features/griot/data/repositories/in_memory_conversation_session_repository.dart';
-import 'package:griot/features/griot/domain/entities/conversation_message.dart';
+import 'package:griot/features/griot/domain/entities/new_conversation_message.dart';
 import 'package:griot/features/griot/domain/services/conversation_session_manager.dart';
 
 void main() {
@@ -17,7 +17,6 @@ void main() {
     expect(sessionB.messages, isEmpty);
 
     expect(await manager.getSession(sessionA.id), isNotNull);
-
     expect(await manager.getSession(sessionB.id), isNotNull);
   });
 
@@ -29,7 +28,7 @@ void main() {
     final sessionB = await manager.createSession();
 
     await manager.addMessage(
-      ConversationMessage(role: "user", content: "Hello"),
+      NewConversationMessage(role: "user", content: "Hello"),
       sessionA.id,
     );
 
@@ -42,7 +41,7 @@ void main() {
     expect(updatedB!.id, equals(sessionB.id));
 
     expect(updatedA.messages.length, 1);
-    expect(updatedB.messages.length, 0);
+    expect(updatedB.messages, isEmpty);
 
     expect(updatedA.messages.single.content, "Hello");
     expect(updatedB.messages, isEmpty);
@@ -56,11 +55,11 @@ void main() {
 
     await Future.wait([
       manager.addMessage(
-        ConversationMessage(role: 'user', content: 'Hello'),
+        NewConversationMessage(role: 'user', content: 'Hello'),
         session.id,
       ),
       manager.addMessage(
-        ConversationMessage(role: 'user', content: 'How are you?'),
+        NewConversationMessage(role: 'user', content: 'How are you?'),
         session.id,
       ),
     ]);
@@ -73,6 +72,48 @@ void main() {
     expect(
       updated.messages.map((message) => message.content),
       containsAll(['Hello', 'How are you?']),
+    );
+  });
+
+  test('each session has independent sequence numbers', () async {
+    final repository = InMemoryConversationSessionRepository();
+    final manager = ConversationSessionManager(repository);
+
+    final sessionA = await manager.createSession();
+    final sessionB = await manager.createSession();
+
+    final messageA1 = await manager.addMessage(
+      const NewConversationMessage(role: 'user', content: 'Hello from A'),
+      sessionA.id,
+    );
+
+    final messageB1 = await manager.addMessage(
+      const NewConversationMessage(role: 'user', content: 'Hello from B'),
+      sessionB.id,
+    );
+
+    final messageA2 = await manager.addMessage(
+      const NewConversationMessage(role: 'assistant', content: 'Response to A'),
+      sessionA.id,
+    );
+
+    expect(messageA1.sequenceNumber, 1);
+    expect(messageB1.sequenceNumber, 1);
+    expect(messageA2.sequenceNumber, 2);
+
+    expect({messageA1.id, messageB1.id, messageA2.id}.length, 3);
+  });
+
+  test('appending to a nonexistent session throws an error', () async {
+    final repository = InMemoryConversationSessionRepository();
+    final manager = ConversationSessionManager(repository);
+
+    await expectLater(
+      manager.addMessage(
+        const NewConversationMessage(role: 'user', content: 'Hello'),
+        'nonexistent-session',
+      ),
+      throwsA(isA<StateError>()),
     );
   });
 }
