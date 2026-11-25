@@ -13,4 +13,10 @@ abstract class ConversationSessionRepository {
     String sessionId,
     NewConversationMessage message,
   );
+
+  Future<List<ConversationMessage>> getMessages(
+    String sessionId, {
+    int limit = 20,
+    int? beforeSequenceNumber,
+  });
 }

@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/entities/new_conversation_message.dart';
 import 'package:griot/features/griot/domain/services/conversation_session_manager.dart';
 import 'package:griot/features/griot/domain/services/speech_output_service.dart';
@@ -115,8 +114,9 @@ class GriotCubit extends Cubit<GriotState> {
         throw StateError('Session $requestSessionId does not exist');
       }
 
-      final previousHistory = List<ConversationMessage>.unmodifiable(
-        session.messages,
+      final previousHistory = await sessionManager.getMessages(
+        requestSessionId,
+        limit: 20,
       );
 
       await sessionManager.addMessage(

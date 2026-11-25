@@ -1,24 +1,22 @@
-import 'package:griot/features/griot/domain/entities/conversation_message.dart';
-
 class ConversationSession {
   ConversationSession({
     required this.id,
+    required this.title,
     required this.createdAt,
     required this.updatedAt,
-    required List<ConversationMessage> messages,
-  }) : messages = List.unmodifiable(messages);
+  });
 
   final String id;
+  final String title;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final List<ConversationMessage> messages;
 
-  ConversationSession addMessage(ConversationMessage message) {
+  ConversationSession copyWith({String? title, DateTime? updatedAt}) {
     return ConversationSession(
       id: id,
+      title: title ?? this.title,
       createdAt: createdAt,
-      updatedAt: DateTime.now(),
-      messages: [...messages, message],
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 }

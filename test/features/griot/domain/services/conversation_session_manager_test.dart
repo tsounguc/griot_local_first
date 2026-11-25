@@ -13,8 +13,8 @@ void main() {
 
     expect(sessionA.id, isNot(sessionB.id));
 
-    expect(sessionA.messages, isEmpty);
-    expect(sessionB.messages, isEmpty);
+    expect(await manager.getMessages(sessionA.id), isEmpty);
+    expect(await manager.getMessages(sessionB.id), isEmpty);
 
     expect(await manager.getSession(sessionA.id), isNotNull);
     expect(await manager.getSession(sessionB.id), isNotNull);
@@ -28,7 +28,7 @@ void main() {
     final sessionB = await manager.createSession();
 
     await manager.addMessage(
-      NewConversationMessage(role: "user", content: "Hello"),
+      const NewConversationMessage(role: 'user', content: 'Hello'),
       sessionA.id,
     );
 
@@ -40,11 +40,13 @@ void main() {
     expect(updatedA!.id, equals(sessionA.id));
     expect(updatedB!.id, equals(sessionB.id));
 
-    expect(updatedA.messages.length, 1);
-    expect(updatedB.messages, isEmpty);
+    final messagesA = await manager.getMessages(sessionA.id);
+    final messagesB = await manager.getMessages(sessionB.id);
 
-    expect(updatedA.messages.single.content, "Hello");
-    expect(updatedB.messages, isEmpty);
+    expect(messagesA.length, 1);
+    expect(messagesB, isEmpty);
+
+    expect(messagesA.single.content, 'Hello');
   });
 
   test('concurrent messages are not lost', () async {
@@ -55,11 +57,11 @@ void main() {
 
     await Future.wait([
       manager.addMessage(
-        NewConversationMessage(role: 'user', content: 'Hello'),
+        const NewConversationMessage(role: 'user', content: 'Hello'),
         session.id,
       ),
       manager.addMessage(
-        NewConversationMessage(role: 'user', content: 'How are you?'),
+        const NewConversationMessage(role: 'user', content: 'How are you?'),
         session.id,
       ),
     ]);
@@ -67,10 +69,22 @@ void main() {
     final updated = await manager.getSession(session.id);
 
     expect(updated, isNotNull);
-    expect(updated!.messages.length, 2);
+
+    final messages = await manager.getMessages(session.id);
+
+    expect(messages.length, 2);
+
+    // Verify that sequence numbers are unique and ordered.
+    expect(
+      messages.map((message) => message.sequenceNumber),
+      orderedEquals([1, 2]),
+    );
+
+    // Verify that both messages have unique IDs.
+    expect(messages.map((message) => message.id).toSet().length, 2);
 
     expect(
-      updated.messages.map((message) => message.content),
+      messages.map((message) => message.content),
       containsAll(['Hello', 'How are you?']),
     );
   });

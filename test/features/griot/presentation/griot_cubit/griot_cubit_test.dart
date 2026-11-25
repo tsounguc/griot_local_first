@@ -27,19 +27,24 @@ class FakeVoiceInputService implements VoiceInputService {
   Future<void> startListening() async {}
 
   @override
-  Future<String> stopListeningAndTranscribe() async => 'Test message';
+  Future<String> stopListeningAndTranscribe() async {
+    return 'Test message';
+  }
 }
 
-// These two fakes are placeholders for this specific test.
-// The test never invokes their methods.
+// Placeholder used by tests that do not invoke the core loop.
 class FakeCoreLoop implements RunGriotCoreLoop {
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) {
+    return super.noSuchMethod(invocation);
+  }
 }
 
 class FakeClusterTask implements RouteClusterTask {
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) {
+    return super.noSuchMethod(invocation);
+  }
 }
 
 class CountingSessionRepository extends InMemoryConversationSessionRepository {
@@ -48,12 +53,14 @@ class CountingSessionRepository extends InMemoryConversationSessionRepository {
   @override
   Future<void> createSession(ConversationSession session) async {
     await super.createSession(session);
+
     creationCount++;
   }
 }
 
 class ControlledCoreLoop implements RunGriotCoreLoop {
   final started = Completer<void>();
+
   final responseCompleter = Completer<GriotConversationResult>();
 
   @override
@@ -69,11 +76,14 @@ class ControlledCoreLoop implements RunGriotCoreLoop {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) {
+    return super.noSuchMethod(invocation);
+  }
 }
 
 class DelayedSessionRepository extends CountingSessionRepository {
   final creationStarted = Completer<void>();
+
   final allowCreationToFinish = Completer<void>();
 
   bool delayNextCreation = false;
@@ -87,7 +97,7 @@ class DelayedSessionRepository extends CountingSessionRepository {
         creationStarted.complete();
       }
 
-      // Hold the creation operation until the test releases it.
+      // Hold creation until the test releases it.
       await allowCreationToFinish.future;
     }
 
@@ -96,6 +106,7 @@ class DelayedSessionRepository extends CountingSessionRepository {
 }
 
 void main() {
+  // TEST 1
   test('starting a new conversation does not create a session', () async {
     final repository = CountingSessionRepository();
     final manager = ConversationSessionManager(repository);
@@ -118,6 +129,7 @@ void main() {
     }
   });
 
+  // TEST 2
   test(
     'LLM response remains in its originating session after switching',
     () async {
@@ -138,7 +150,7 @@ void main() {
         final sessionA = await manager.createSession();
         final sessionB = await manager.createSession();
 
-        // Select Session A.
+        // Select session A.
         await cubit.switchConversation(sessionA.id);
 
         // Begin a request without waiting for inference to finish.
@@ -147,10 +159,10 @@ void main() {
         // Wait until the fake LLM has actually started.
         await coreLoop.started.future;
 
-        // The user switches conversations during inference.
+        // Switch conversations during inference.
         await cubit.switchConversation(sessionB.id);
 
-        // Now allow the LLM to finish.
+        // Allow the LLM to finish.
         coreLoop.responseCompleter.complete(
           GriotConversationResult(
             response: 'Response for Session A',
@@ -163,23 +175,28 @@ void main() {
 
         await pendingRequest;
 
-        // Retrieve the stored histories.
+        // Retrieve session metadata.
         final updatedA = await manager.getSession(sessionA.id);
         final updatedB = await manager.getSession(sessionB.id);
 
-        // Session A should contain the complete exchange.
         expect(updatedA, isNotNull);
-        expect(updatedA!.messages.length, 2);
+        expect(updatedB, isNotNull);
 
-        expect(updatedA.messages[0].role, 'user');
-        expect(updatedA.messages[0].content, 'Hello from Session A');
+        // Retrieve messages independently.
+        final messagesA = await manager.getMessages(sessionA.id);
+        final messagesB = await manager.getMessages(sessionB.id);
 
-        expect(updatedA.messages[1].role, 'assistant');
-        expect(updatedA.messages[1].content, 'Response for Session A');
+        // Session A should contain the complete exchange.
+        expect(messagesA.length, 2);
+
+        expect(messagesA[0].role, 'user');
+        expect(messagesA[0].content, 'Hello from Session A');
+
+        expect(messagesA[1].role, 'assistant');
+        expect(messagesA[1].content, 'Response for Session A');
 
         // Session B must remain untouched.
-        expect(updatedB, isNotNull);
-        expect(updatedB!.messages, isEmpty);
+        expect(messagesB, isEmpty);
 
         // A's response must not become B's visible state.
         expect(cubit.state, isA<GriotIdle>());
@@ -189,6 +206,7 @@ void main() {
     },
   );
 
+  // TEST 3
   test(
     'a delayed session creation cannot override a newer selection',
     () async {
@@ -207,7 +225,7 @@ void main() {
       Future<void>? pendingRequest;
 
       try {
-        // Create Session B before enabling the delay.
+        // Create session B before enabling the delay.
         final sessionB = await manager.createSession();
 
         // Start a new conversation without creating a session yet.
@@ -253,11 +271,15 @@ void main() {
         expect(cubit.activeSessionId, sessionB.id);
         expect(cubit.state, isA<GriotIdle>());
 
-        // B must not receive A's messages.
+        // B must still exist.
         final updatedB = await manager.getSession(sessionB.id);
 
         expect(updatedB, isNotNull);
-        expect(updatedB!.messages, isEmpty);
+
+        // B must not receive A's messages.
+        final messagesB = await manager.getMessages(sessionB.id);
+
+        expect(messagesB, isEmpty);
       } finally {
         if (!repository.allowCreationToFinish.isCompleted) {
           repository.allowCreationToFinish.complete();

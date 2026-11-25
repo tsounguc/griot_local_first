@@ -14,14 +14,13 @@ class ConversationSessionManager {
       _repository.getSession(id);
 
   Future<ConversationSession> createSession() async {
-    final id = Uuid().v4();
     final now = DateTime.now();
 
     final session = ConversationSession(
-      id: id,
+      id: Uuid().v4(),
+      title: 'New Conversation',
       createdAt: now,
       updatedAt: now,
-      messages: [],
     );
 
     await _repository.createSession(session);
@@ -35,4 +34,16 @@ class ConversationSessionManager {
     NewConversationMessage message,
     String sessionId,
   ) => _repository.appendMessage(sessionId, message);
+
+  Future<List<ConversationMessage>> getMessages(
+    String sessionId, {
+    int limit = 20,
+    int? beforeSequenceNumber,
+  }) {
+    return _repository.getMessages(
+      sessionId,
+      limit: limit,
+      beforeSequenceNumber: beforeSequenceNumber,
+    );
+  }
 }
