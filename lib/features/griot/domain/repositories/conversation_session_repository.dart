@@ -1,5 +1,6 @@
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/entities/conversation_session.dart';
+import 'package:griot/features/griot/domain/entities/conversation_session_cursor.dart';
 import 'package:griot/features/griot/domain/entities/new_conversation_message.dart';
 
 abstract class ConversationSessionRepository {
@@ -8,6 +9,11 @@ abstract class ConversationSessionRepository {
   Future<void> createSession(ConversationSession session);
 
   Future<void> deleteSession(String id);
+
+  Future<List<ConversationSession>> getSessions({
+    int limit = 20,
+    ConversationSessionCursor? cursor,
+  });
 
   Future<ConversationMessage> appendMessage(
     String sessionId,

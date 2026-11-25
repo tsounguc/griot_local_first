@@ -1,5 +1,6 @@
 import 'package:griot/features/griot/domain/entities/conversation_message.dart';
 import 'package:griot/features/griot/domain/entities/conversation_session.dart';
+import 'package:griot/features/griot/domain/entities/conversation_session_cursor.dart';
 import 'package:griot/features/griot/domain/repositories/conversation_session_repository.dart';
 import 'package:uuid/uuid.dart';
 
@@ -12,6 +13,11 @@ class ConversationSessionManager {
 
   Future<ConversationSession?> getSession(String id) =>
       _repository.getSession(id);
+
+  Future<List<ConversationSession>> getSessions({
+    int limit = 20,
+    ConversationSessionCursor? cursor,
+  }) => _repository.getSessions(limit: limit, cursor: cursor);
 
   Future<ConversationSession> createSession() async {
     final now = DateTime.now();

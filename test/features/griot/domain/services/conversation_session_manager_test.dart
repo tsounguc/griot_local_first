@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:griot/features/griot/data/repositories/in_memory_conversation_session_repository.dart';
+import 'package:griot/features/griot/domain/entities/conversation_session.dart';
+import 'package:griot/features/griot/domain/entities/conversation_session_cursor.dart';
 import 'package:griot/features/griot/domain/entities/new_conversation_message.dart';
 import 'package:griot/features/griot/domain/services/conversation_session_manager.dart';
 
@@ -129,5 +131,49 @@ void main() {
       ),
       throwsA(isA<StateError>()),
     );
+  });
+
+  test('manager respects conversation pagination limit', () async {
+    final repository = InMemoryConversationSessionRepository();
+    final manager = ConversationSessionManager(repository);
+
+    await manager.createSession();
+    await manager.createSession();
+    await manager.createSession();
+
+    final sessions = await manager.getSessions(limit: 2);
+
+    expect(sessions.length, 2);
+  });
+
+  test('manager retrieves next conversation page using cursor', () async {
+    final repository = InMemoryConversationSessionRepository();
+    final manager = ConversationSessionManager(repository);
+
+    final timestamp = DateTime.utc(2026, 11, 25);
+
+    for (final id in ['C', 'A', 'D', 'B']) {
+      await repository.createSession(
+        ConversationSession(
+          id: id,
+          title: 'Conversation $id',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        ),
+      );
+    }
+
+    final firstPage = await manager.getSessions(limit: 2);
+
+    final cursor = ConversationSessionCursor(
+      updatedAt: firstPage.last.updatedAt,
+      id: firstPage.last.id,
+    );
+
+    final secondPage = await manager.getSessions(limit: 2, cursor: cursor);
+
+    expect(firstPage.map((session) => session.id), orderedEquals(['A', 'B']));
+
+    expect(secondPage.map((session) => session.id), orderedEquals(['C', 'D']));
   });
 }

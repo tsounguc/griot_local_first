@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:griot/features/griot/data/repositories/in_memory_conversation_session_repository.dart';
 import 'package:griot/features/griot/domain/entities/conversation_session.dart';
+import 'package:griot/features/griot/domain/entities/conversation_session_cursor.dart';
 import 'package:griot/features/griot/domain/entities/new_conversation_message.dart';
 
 void main() {
@@ -281,5 +282,178 @@ void main() {
 
     // Verify that the newly appended messages also exist.
     expect(await sequences(limit: 2), orderedEquals([11, 12]));
+  });
+
+  group('Conversation session pagination', () {
+    late InMemoryConversationSessionRepository repository;
+
+    final older = DateTime.utc(2026, 11, 20);
+    final newer = DateTime.utc(2026, 11, 24);
+
+    setUp(() {
+      repository = InMemoryConversationSessionRepository();
+    });
+
+    Future<void> createSession(String id, DateTime updatedAt) async {
+      await repository.createSession(
+        ConversationSession(
+          id: id,
+          title: 'Conversation $id',
+          createdAt: updatedAt,
+          updatedAt: updatedAt,
+        ),
+      );
+    }
+
+    ConversationSessionCursor cursorFrom(ConversationSession session) {
+      return ConversationSessionCursor(
+        updatedAt: session.updatedAt,
+        id: session.id,
+      );
+    }
+
+    test('empty repository returns an empty list', () async {
+      final sessions = await repository.getSessions();
+
+      expect(sessions, isEmpty);
+    });
+
+    test('sessions are ordered by updatedAt descending', () async {
+      await createSession('A', older);
+      await createSession('B', newer);
+      await createSession('C', DateTime.utc(2026, 11, 22));
+
+      final sessions = await repository.getSessions();
+
+      expect(sessions.map((session) => session.id).toList(), ['B', 'C', 'A']);
+    });
+
+    test('identical timestamps are ordered by ID ascending', () async {
+      await createSession('C', newer);
+      await createSession('A', newer);
+      await createSession('B', newer);
+
+      final sessions = await repository.getSessions();
+
+      expect(sessions.map((session) => session.id).toList(), ['A', 'B', 'C']);
+    });
+
+    test('requested page size is respected', () async {
+      await createSession('A', newer);
+      await createSession('B', newer);
+      await createSession('C', older);
+
+      final sessions = await repository.getSessions(limit: 2);
+
+      expect(sessions.length, 2);
+
+      expect(sessions.map((session) => session.id).toList(), ['A', 'B']);
+    });
+
+    test('composite cursor retrieves the next page', () async {
+      await createSession('A', newer);
+      await createSession('B', newer);
+      await createSession('C', newer);
+      await createSession('D', older);
+
+      final firstPage = await repository.getSessions(limit: 2);
+
+      final secondPage = await repository.getSessions(
+        limit: 2,
+        cursor: cursorFrom(firstPage.last),
+      );
+
+      expect(firstPage.map((session) => session.id).toList(), ['A', 'B']);
+
+      expect(secondPage.map((session) => session.id).toList(), ['C', 'D']);
+    });
+
+    test('pagination does not skip or duplicate sessions', () async {
+      await createSession('E', older);
+      await createSession('C', newer);
+      await createSession('A', newer);
+      await createSession('D', older);
+      await createSession('B', newer);
+
+      final retrievedIds = <String>[];
+
+      ConversationSessionCursor? cursor;
+
+      // Bounded iteration prevents a broken cursor from
+      // causing an infinite test loop.
+      for (var i = 0; i < 4; i++) {
+        final page = await repository.getSessions(limit: 2, cursor: cursor);
+
+        if (page.isEmpty) {
+          break;
+        }
+
+        retrievedIds.addAll(page.map((session) => session.id));
+
+        cursor = cursorFrom(page.last);
+      }
+
+      expect(retrievedIds, ['A', 'B', 'C', 'D', 'E']);
+      expect(retrievedIds.toSet().length, 5);
+    });
+
+    test('cursor remains valid after its session is deleted', () async {
+      await createSession('A', newer);
+      await createSession('B', newer);
+      await createSession('C', older);
+      await createSession('D', older);
+
+      final firstPage = await repository.getSessions(limit: 2);
+
+      final cursor = cursorFrom(firstPage.last);
+
+      await repository.deleteSession('B');
+
+      final secondPage = await repository.getSessions(limit: 2, cursor: cursor);
+
+      expect(secondPage.map((session) => session.id).toList(), ['C', 'D']);
+    });
+
+    test('cursor at the final session returns an empty page', () async {
+      await createSession('A', newer);
+      await createSession('B', older);
+
+      final firstPage = await repository.getSessions();
+
+      final nextPage = await repository.getSessions(
+        cursor: cursorFrom(firstPage.last),
+      );
+
+      expect(nextPage, isEmpty);
+    });
+
+    test('zero and negative limits are rejected', () async {
+      await expectLater(repository.getSessions(limit: 0), throwsArgumentError);
+
+      await expectLater(repository.getSessions(limit: -1), throwsArgumentError);
+    });
+
+    test('appending a message moves a session to the top', () async {
+      await createSession('A', older);
+      await createSession('B', newer);
+
+      final before = await repository.getSessions();
+
+      expect(before.map((session) => session.id).toList(), ['B', 'A']);
+
+      await repository.appendMessage(
+        'A',
+        const NewConversationMessage(
+          role: 'user',
+          content: 'Continuing an older conversation',
+        ),
+      );
+
+      final after = await repository.getSessions();
+
+      expect(after.map((session) => session.id).toList(), ['A', 'B']);
+
+      expect(after.first.updatedAt.isAfter(newer), isTrue);
+    });
   });
 }
